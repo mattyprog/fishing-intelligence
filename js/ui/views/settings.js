@@ -114,7 +114,7 @@ function render() {
       <div class="segmented" role="group" aria-label="Tema">
         ${THEMES.map((t) => html`<button type="button" data-act="theme" data-theme="${t.key}" aria-pressed="${prefs.theme === t.key ? 'true' : 'false'}">${t.label}</button>`)}
       </div>
-      <p class="help">In automatico l'app è chiara di giorno e scura dal tramonto all'alba.</p>
+      <p class="help">In automatico segue il tema del telefono e resta scura dal tramonto all'alba.</p>
     </section>
 
     <section class="card stack">
