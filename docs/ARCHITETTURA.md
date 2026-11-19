@@ -444,8 +444,10 @@ di diverso, e perché. Dove i due testi non coincidono vale questa sezione.
 - `forecast-controller.js`: `handleDataChanged` ascolta `data:changed`. Dopo un ripristino o una
   sincronizzazione lo spot attivo può essere sparito o essersi spostato: selezione e previsioni
   si riallineano.
-- `tactics.js`: le canne si giudicano con `evaluateCasting` (piombo più 15 g di innesco), come in
-  Attrezzatura, e si dividono in `ok`, `overloaded`, `underloaded`. Senza finestra il piano guarda
+- `tactics.js`: le canne si giudicano con `evaluateCasting`, come in Attrezzatura, e si dividono
+  in `ok`, `overloaded`, `underloaded`. Al piombo si somma un innesco medio da 15 g
+  (`TYPICAL_BAIT_G` in `casting.js`): è lo stesso valore da cui parte il calcolo di Attrezzatura,
+  dove poi l'utente può sceglierne un altro. Senza finestra il piano guarda
   il mare da adesso in poi. Le esche dell'utente compaiono solo con il mare per cui le ha indicate.
 - Diario: il mare allegato a una cattura vale per un'ora, un posto e una specie. Se uno dei tre
   cambia si ricalcola, quando le previsioni dello spot attivo coprono quel momento; altrimenti si

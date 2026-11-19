@@ -3,7 +3,7 @@
  * Modulo puro: lavora su valutazione, previsione e attrezzatura già caricate.
  */
 
-import { evaluateCasting } from './casting.js';
+import { evaluateCasting, TYPICAL_BAIT_G } from './casting.js';
 
 const isNum = (v) => typeof v === 'number' && Number.isFinite(v);
 const cap = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
@@ -11,8 +11,8 @@ const avg = (list) => (list.length ? list.reduce((a, b) => a + b, 0) / list.leng
 
 // Oltre questa onda si passa al terminale da mare mosso
 const ROUGH_SEA_M = 0.7;
-// Peso tipico dell'innesco: nel lancio si somma al piombo, come nel calcolo di Attrezzatura
-export const NOMINAL_BAIT_G = 15;
+// Innesco sommato al piombo: lo stesso peso da cui parte il calcolo di Attrezzatura
+export const NOMINAL_BAIT_G = TYPICAL_BAIT_G;
 
 /** Piombo per altezza e periodo dell'onda; null se l'onda non è nota. */
 export function recommendedLead(waveM, periodS) {

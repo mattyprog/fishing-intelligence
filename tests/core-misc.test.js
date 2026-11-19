@@ -3,8 +3,8 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fmtNum, windName, seaStateLabel, weatherLabel } from '../js/core/format.js';
 import { SPECIES, CATCH_SPECIES, REGULATIONS, getSpecies, legalSizeFor } from '../js/core/species.js';
-import { buildTactics, recommendedLead } from '../js/core/tactics.js';
-import { evaluateCasting } from '../js/core/casting.js';
+import { buildTactics, recommendedLead, NOMINAL_BAIT_G } from '../js/core/tactics.js';
+import { evaluateCasting, TYPICAL_BAIT_G } from '../js/core/casting.js';
 import { computeCatchStats, computeInsights } from '../js/core/stats.js';
 import { buildForecast } from '../js/core/forecast.js';
 import { evaluateForecast } from '../js/core/scoring.js';
@@ -199,12 +199,12 @@ test('buildTactics: mare formato, giornata pericolosa e dati mancanti', () => {
     species: getSpecies('sarago'), spot: null, gear: GEAR, baits: BAITS
   });
   assert.equal(t150.lead.grams, 150);
-  // 150 g di piombo più 15 g di innesco: la "Media" (massimo 160 g) è sovraccarica, come in Attrezzatura
+  // 150 g di piombo più l'innesco medio: la "Media" (massimo 160 g) è sovraccarica, come in Attrezzatura
   assert.deepEqual(t150.rods.ok.map((r) => r.name), ['Surf pesante', 'Pesantissima']);
   assert.deepEqual(t150.rods.overloaded.map((r) => r.name), ['Leggera', 'Media']);
   assert.deepEqual(t150.rods.underloaded, []);
   for (const r of [...t150.rods.ok, ...t150.rods.overloaded]) {
-    const same = evaluateCasting({ rod: r, leadG: 150, baitG: 15 }).status;
+    const same = evaluateCasting({ rod: r, leadG: 150, baitG: NOMINAL_BAIT_G }).status;
     assert.equal(t150.rods.ok.includes(r), same === 'ok' || same === 'limit', r.name);
   }
   assert.equal(t150.rig, getSpecies('sarago').tactics.rigRough);
@@ -218,6 +218,32 @@ test('buildTactics: mare formato, giornata pericolosa e dati mancanti', () => {
   const danger = buildTactics({ evaluation: evalFor('orata')[0], forecast: FORECAST, species: getSpecies('orata'), spot: SPOT, gear: GEAR, baits: [] });
   assert.match(danger.when, /non c'è una finestra sicura/);
   assert.equal(danger.lead.grams, 150);
+});
+
+test('buildTactics: ai limiti della canna il piano dice quello che dice Attrezzatura', () => {
+  // Il piano somma al piombo lo stesso innesco da cui parte Attrezzatura. Quando erano due numeri
+  // diversi le due viste si smentivano proprio ai limiti del campo di lancio.
+  assert.equal(NOMINAL_BAIT_G, TYPICAL_BAIT_G);
+  const total = 150 + TYPICAL_BAIT_G;
+  const rod = (name, min, max) => ({ client_id: name, category: 'canna_surf', name, min_cast_g: min, max_cast_g: max, status: 'pronta' });
+  const rods = [
+    rod('Massimo giusto', 100, total),
+    rod('Un grammo sotto il massimo', 100, total - 1),
+    rod('Minimo giusto', total, 300),
+    rod('Un grammo sopra il minimo', total + 1, 300)
+  ];
+  const t = buildTactics({
+    evaluation: { dayIndex: 0, bestWindow: { startIndex: 0, endIndex: 1, label: 'oggi 14-17' } },
+    forecast: { hours: [{ waveM: 1.4, wavePeriodS: 8 }], days: [] },
+    species: getSpecies('sarago'), spot: null, gear: rods, baits: []
+  });
+  assert.equal(t.lead.grams, 150);
+  assert.deepEqual(t.rods.ok.map((r) => r.name), ['Massimo giusto', 'Minimo giusto']);
+  assert.deepEqual(t.rods.overloaded.map((r) => r.name), ['Un grammo sotto il massimo']);
+  assert.deepEqual(t.rods.underloaded.map((r) => r.name), ['Un grammo sopra il minimo']);
+  // e Attrezzatura, con l'innesco da cui parte, dà lo stesso giudizio su ciascuna
+  const inGear = (r) => evaluateCasting({ rod: r, leadG: 150, baitG: TYPICAL_BAIT_G }).status;
+  assert.deepEqual(rods.map(inGear), ['limit', 'overload', 'ok', 'underload']);
 });
 
 test('buildTactics: canne troppo potenti, mare dopo una giornata calma, esche per il mare giusto', () => {

@@ -5,6 +5,12 @@
 
 const isNum = (v) => typeof v === 'number' && Number.isFinite(v);
 
+// Peso di un innesco medio (regola pratica, non una misura). È il valore da cui parte il calcolo
+// in Attrezzatura e quello che il piano di pesca somma al piombo: un numero solo, così le due
+// viste giudicano una canna allo stesso modo finché l'utente non sceglie un altro innesco.
+// 15 e non meno: con il piombo da 85 g del mare calmo una canna da 100-200 g resta nel suo campo.
+export const TYPICAL_BAIT_G = 15;
+
 // Regola pratica per lo shock leader nel lancio di potenza
 const LEADER_RULES = [
   { fromG: 135, minMm: 0.5 },

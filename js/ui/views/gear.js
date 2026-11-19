@@ -16,12 +16,12 @@ import {
   countDemoRecords,
   removeDemoRecords
 } from '../../services/storage.js';
-import { evaluateCasting } from '../../core/casting.js';
+import { evaluateCasting, TYPICAL_BAIT_G } from '../../core/casting.js';
 import { SPECIES } from '../../core/species.js';
 
 let root = null;
 
-const calc = { rodId: null, leadG: 110, baitG: 12 };
+const calc = { rodId: null, leadG: 110, baitG: TYPICAL_BAIT_G };
 
 const CATEGORY_LABEL = {
   canna_surf: 'Canna da surfcasting',
@@ -45,7 +45,7 @@ const WATER_LABEL = {
 };
 const BAIT_WEIGHTS = [
   { g: 5, label: 'Verme sottile, circa 5 g' },
-  { g: 12, label: 'Innesco medio, circa 12 g' },
+  { g: TYPICAL_BAIT_G, label: `Innesco medio, circa ${TYPICAL_BAIT_G} g` },
   { g: 25, label: 'Innesco voluminoso, circa 25 g' },
   { g: 40, label: 'Trancio di pesce, circa 40 g' }
 ];
@@ -92,7 +92,7 @@ function handleAction(ev, el) {
 
 function handleCalcChange(ev, el) {
   if (el.dataset.calc === 'rod') calc.rodId = el.value;
-  if (el.dataset.calc === 'bait') calc.baitG = Number(el.value) || 12;
+  if (el.dataset.calc === 'bait') calc.baitG = Number(el.value) || TYPICAL_BAIT_G;
   renderCalcResult();
 }
 
