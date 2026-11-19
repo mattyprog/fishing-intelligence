@@ -5,12 +5,14 @@
 
 import { CACHE } from './config.js';
 import { state, bus } from './state.js';
-import { getSpot, listSpots, setPrefs } from './services/storage.js';
+import { getSpot, listSpots, getPrefs, setPrefs } from './services/storage.js';
 import { loadForecast } from './services/weather-api.js';
 import { evaluateForecast } from './core/scoring.js';
 import { SPECIES, getSpecies } from './core/species.js';
 
 let loadToken = 0;
+// Punto e orientamento per cui sono state costruite le previsioni in memoria
+let loadedFor = null;
 
 /** Le preferenze sono un comodo, non un requisito: se non si salvano la scelta vale lo stesso. */
 function rememberPrefs(partial) {
@@ -72,8 +74,39 @@ export async function refreshForecast({ force = false } = {}) {
   state.forecast = result.forecast;
   state.forecastMeta = result.meta;
   state.loading = false;
+  loadedFor = { id: spot.id, lat: spot.lat, lng: spot.lng, deg: spot.coast_orientation_deg };
   recompute();
   bus.emit('forecast:updated');
+}
+
+/**
+ * I dati possono cambiare senza passare dai comandi di questa pagina: ripristino di una copia,
+ * sincronizzazione, cancellazione di uno spot. Lo spot attivo può essere sparito, oppure essersi
+ * spostato: in quei casi le previsioni in memoria non sono più le sue.
+ * Restituisce la promessa del ricaricamento, se ne parte uno.
+ */
+export function handleDataChanged({ kind, source } = {}) {
+  const wide = kind === 'all' || source === 'sync';
+  const prefs = getPrefs();
+
+  // Dopo un ripristino valgono le preferenze della copia
+  if (kind === 'all' && prefs.speciesId !== state.speciesId && getSpecies(prefs.speciesId)) {
+    state.speciesId = prefs.speciesId;
+    recompute();
+    bus.emit('selection:changed');
+    bus.emit('forecast:updated');
+  }
+
+  const spot = getSpot(state.spotId);
+  const followPrefs = kind === 'all' && prefs.spotId !== state.spotId && Boolean(getSpot(prefs.spotId));
+  if (!spot || followPrefs) {
+    const next = getSpot(prefs.spotId) ? prefs.spotId : listSpots()[0]?.id;
+    return next && next !== state.spotId ? selectSpot(next) : undefined;
+  }
+
+  const changed = loadedFor && loadedFor.id === spot.id
+    && (loadedFor.lat !== spot.lat || loadedFor.lng !== spot.lng || loadedFor.deg !== spot.coast_orientation_deg);
+  return wide && changed ? refreshForecast() : undefined;
 }
 
 export function selectSpot(id) {
@@ -113,4 +146,5 @@ export function installAutoRefresh() {
   };
   document.addEventListener('visibilitychange', maybeRefresh);
   window.addEventListener('online', maybeRefresh);
+  bus.on('data:changed', handleDataChanged);
 }

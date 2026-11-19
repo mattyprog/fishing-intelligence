@@ -251,7 +251,7 @@ function scoreDetails() {
           </div>`
         )}
       </div>
-      <p class="small muted">La sicurezza viene prima: con mare o vento pericolosi il giudizio è "pericolo", qualunque sia il resto.</p>
+      <p class="small muted">La sicurezza viene prima: le ore con mare, vento o temporali pericolosi non entrano mai nella finestra consigliata. Se non restano tre ore sicure di fila il giudizio è "pericolo", qualunque sia il resto, e con mare impegnativo non si va oltre "buono".</p>
       <p class="small muted">È una stima. Le preferenze delle specie vengono dall'esperienza dei pescatori del Tirreno, non da misure. Luna e marea pesano poco perché le prove sono deboli. Oltre i quattro giorni le previsioni cambiano spesso.</p>`
   );
 }

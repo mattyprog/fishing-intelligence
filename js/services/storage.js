@@ -38,6 +38,8 @@ const V1_KEYS = Object.freeze({
 });
 
 const V1_WEATHER_CACHE_PREFIX = 'fi_weather_cache_v1_';
+// Previsioni salvate da weather-api.js (stesso prefisso di CACHE.prefix in config.js)
+const FORECAST_CACHE_PREFIX = 'fi2_fc_';
 
 /** Collezioni di record dell'utente e tabella cloud corrispondente. */
 export const KINDS = Object.freeze(['spots', 'gear', 'baits', 'catches']);
@@ -194,11 +196,8 @@ let blockedCode = null;
  * Scrive più chiavi come un'unica operazione: se una fallisce si ripristinano le precedenti.
  * value undefined = rimuovi la chiave.
  */
-function persist(entries, { force = false } = {}) {
-  if (blockedCode && !force) throw new StorageError(blockedCode);
-  const store = getStore();
-  if (!store) throw new StorageError('unavailable');
-  const prepared = entries.map(([key, value]) => [key, value === undefined ? null : JSON.stringify(value)]);
+/** Scrive tutte le chiavi o nessuna: al primo errore rimette com'erano quelle già scritte. */
+function writeAll(store, prepared) {
   const done = [];
   try {
     for (const [key, text] of prepared) {
@@ -213,6 +212,43 @@ function persist(entries, { force = false } = {}) {
         else store.setItem(key, prev);
       } catch {
         // il ripristino libera spazio o riscrive ciò che c'era: non dovrebbe fallire
+      }
+    }
+    throw err;
+  }
+}
+
+/** Elimina le previsioni salvate (si riscaricano). Restituisce quante chiavi ha tolto. */
+function dropForecastCache(store) {
+  const stale = [];
+  try {
+    for (let i = 0; i < store.length; i++) {
+      const k = store.key(i);
+      if (k && k.startsWith(FORECAST_CACHE_PREFIX)) stale.push(k);
+    }
+    for (const k of stale) store.removeItem(k);
+  } catch {
+    return 0;
+  }
+  return stale.length;
+}
+
+function persist(entries, { force = false } = {}) {
+  if (blockedCode && !force) throw new StorageError(blockedCode);
+  const store = getStore();
+  if (!store) throw new StorageError('unavailable');
+  const prepared = entries.map(([key, value]) => [key, value === undefined ? null : JSON.stringify(value)]);
+  try {
+    writeAll(store, prepared);
+  } catch (err) {
+    // Spazio esaurito: le previsioni salvate si possono riscaricare, i dati dell'utente no.
+    // Si liberano quelle e si riprova una volta.
+    if (isQuotaError(err) && dropForecastCache(store) > 0) {
+      try {
+        writeAll(store, prepared);
+        return;
+      } catch (err2) {
+        throw new StorageError(isQuotaError(err2) ? 'quota' : 'unavailable', err2);
       }
     }
     throw new StorageError(isQuotaError(err) ? 'quota' : 'unavailable', err);
@@ -813,6 +849,9 @@ export function initStorage() {
     next = m.state;
     result.migrated = true;
     if (m.skipped) result.skipped = m.skipped;
+    // Prima di scrivere: se la memoria è piena proprio per le previsioni della v1, senza questo
+    // la migrazione fallirebbe senza poterle liberare
+    dropV1WeatherCache(store);
   } else {
     next = emptyState();
     next.prefs = normalizePrefs(readJson(store, KEYS.prefs, null));
@@ -833,7 +872,6 @@ export function initStorage() {
     return { ...result, migrated: false, demoCount: countDemo(next), error: err.code };
   }
   cache = next;
-  if (result.migrated) dropV1WeatherCache(store);
   emitKinds('all');
   return { ...result, demoCount: countDemo(next) };
 }

@@ -176,9 +176,12 @@ test('buildTactics: canne compatibili, esche incrociate, terminale, dove e quand
   assert.equal(t.lead.grams, recommendedLead(wave, hs.reduce((a, h) => a + h.wavePeriodS, 0) / hs.length).grams);
   const g = t.lead.grams;
   const okNames = t.rods.ok.map((r) => r.name);
-  for (const r of t.rods.ok) assert.ok(r.min_cast_g <= g + 15 && r.max_cast_g >= g);
+  for (const r of t.rods.ok) assert.ok(r.min_cast_g <= g + 15 && r.max_cast_g >= g + 15);
   assert.ok(!okNames.includes('Rotta') && !okNames.includes('Senza dati') && !okNames.includes('Mulinello'));
-  for (const r of t.rods.overloaded) assert.ok(r.max_cast_g < g);
+  for (const r of t.rods.overloaded) assert.ok(r.max_cast_g < g + 15);
+  for (const r of t.rods.underloaded) assert.ok(r.min_cast_g > g + 15);
+  // ogni canna utilizzabile finisce in uno e un solo elenco
+  assert.equal(t.rods.ok.length + t.rods.overloaded.length + t.rods.underloaded.length, 4);
   const baits = Object.fromEntries(t.baits.map((b) => [b.name, b.have]));
   assert.equal(baits.Americano, true);
   assert.equal(baits.Bibi, false); // quantità zero
@@ -196,19 +199,69 @@ test('buildTactics: mare formato, giornata pericolosa e dati mancanti', () => {
     species: getSpecies('sarago'), spot: null, gear: GEAR, baits: BAITS
   });
   assert.equal(t150.lead.grams, 150);
-  assert.deepEqual(t150.rods.ok.map((r) => r.name), ['Surf pesante', 'Media', 'Pesantissima']);
-  assert.deepEqual(t150.rods.overloaded.map((r) => r.name), ['Leggera']);
+  // 150 g di piombo più 15 g di innesco: la "Media" (massimo 160 g) è sovraccarica, come in Attrezzatura
+  assert.deepEqual(t150.rods.ok.map((r) => r.name), ['Surf pesante', 'Pesantissima']);
+  assert.deepEqual(t150.rods.overloaded.map((r) => r.name), ['Leggera', 'Media']);
+  assert.deepEqual(t150.rods.underloaded, []);
+  for (const r of [...t150.rods.ok, ...t150.rods.overloaded]) {
+    const same = evaluateCasting({ rod: r, leadG: 150, baitG: 15 }).status;
+    assert.equal(t150.rods.ok.includes(r), same === 'ok' || same === 'limit', r.name);
+  }
   assert.equal(t150.rig, getSpecies('sarago').tactics.rigRough);
   const spigola = buildTactics({ evaluation: null, forecast: null, species: getSpecies('spigola'), spot: null, gear: [], baits: BAITS });
   assert.deepEqual(spigola.lead, { grams: null, shape: null });
-  assert.deepEqual(spigola.rods, { ok: [], overloaded: [] });
+  assert.deepEqual(spigola.rods, { ok: [], overloaded: [], underloaded: [] });
   assert.match(spigola.rig, /Onda n\.d\./);
   const sb = Object.fromEntries(spigola.baits.map((b) => [b.name, b.have]));
   assert.equal(sb.Sarda, true);
   assert.equal(sb['Trancio di cefalo'], true); // mugine = cefalo
   const danger = buildTactics({ evaluation: evalFor('orata')[0], forecast: FORECAST, species: getSpecies('orata'), spot: SPOT, gear: GEAR, baits: [] });
-  assert.match(danger.when, /non ci sono ore sicure/);
+  assert.match(danger.when, /non c'è una finestra sicura/);
   assert.equal(danger.lead.grams, 150);
+});
+
+test('buildTactics: canne troppo potenti, mare dopo una giornata calma, esche per il mare giusto', () => {
+  // Mare calmo: piombo da 85 g, 100 g in tutto. La "Pesantissima" (da 150 g) non si carica.
+  const calm = buildTactics({
+    evaluation: { dayIndex: 0, bestWindow: { startIndex: 0, endIndex: 1, label: 'oggi 14-17' } },
+    forecast: { hours: [{ waveM: 0.3, wavePeriodS: 5 }], days: [] },
+    species: getSpecies('orata'), spot: null, gear: GEAR, baits: []
+  });
+  assert.equal(calm.lead.grams, 85);
+  assert.deepEqual(calm.rods.underloaded.map((r) => r.name), ['Pesantissima']);
+  assert.deepEqual(calm.rods.ok.map((r) => r.name), ['Surf pesante', 'Leggera', 'Media']);
+
+  // Giornata calma fino a sera, poi mareggiata: senza finestra conta solo il mare da adesso in poi
+  const hours = Array.from({ length: 24 }, (_, i) => ({ waveM: i < 18 ? 0.3 : 2.4, wavePeriodS: i < 18 ? 5 : 8 }));
+  const stormNow = buildTactics({
+    evaluation: { dayIndex: 0, bestWindow: null, verdict: { key: 'pericolo' } },
+    forecast: { hours, nowIndex: 18, days: [{ startIndex: 0, endIndex: 24 }] },
+    species: getSpecies('orata'), spot: null, gear: [], baits: []
+  });
+  assert.equal(stormNow.lead.grams, 150);
+  assert.equal(stormNow.rig, getSpecies('orata').tactics.rigRough);
+  // Una giornata futura si guarda per intero
+  const future = buildTactics({
+    evaluation: { dayIndex: 0, bestWindow: null },
+    forecast: { hours, nowIndex: -1, days: [{ startIndex: 0, endIndex: 24 }] },
+    species: getSpecies('orata'), spot: null, gear: [], baits: []
+  });
+  assert.equal(future.lead.grams, recommendedLead((18 * 0.3 + 6 * 2.4) / 24, (18 * 5 + 6 * 8) / 24).grams);
+
+  // Le esche dell'utente compaiono solo con il mare per cui le ha indicate
+  const mine = [
+    { name: 'Lombrico di mare', quantity: 1, available: true, target_species: ['orata'], water_condition: 'calmo_poco_mosso' },
+    { name: 'Cozza sgusciata', quantity: 1, available: true, target_species: ['orata'], water_condition: 'mosso_scaduta' },
+    { name: 'Gambero vivo', quantity: 1, available: true, target_species: ['orata'], water_condition: 'tutte' }
+  ];
+  const namesWith = (waveM) => buildTactics({
+    evaluation: { dayIndex: 0, bestWindow: { startIndex: 0, endIndex: 1, label: 'oggi 14-17' } },
+    forecast: { hours: [{ waveM, wavePeriodS: 6 }], days: [] },
+    species: getSpecies('orata'), spot: null, gear: [], baits: mine
+  }).baits.map((b) => b.name);
+  assert.ok(namesWith(0.3).includes('Lombrico di mare') && !namesWith(0.3).includes('Cozza sgusciata') && namesWith(0.3).includes('Gambero vivo'));
+  assert.ok(!namesWith(1.2).includes('Lombrico di mare') && namesWith(1.2).includes('Cozza sgusciata') && namesWith(1.2).includes('Gambero vivo'));
+  assert.ok(namesWith(null).includes('Lombrico di mare') && namesWith(null).includes('Cozza sgusciata'));
 });
 
 /* --------------------------------- casting --------------------------------- */

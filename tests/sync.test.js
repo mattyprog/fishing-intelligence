@@ -20,6 +20,7 @@ import {
   setClock
 } from '../js/services/storage.js';
 import { syncNow, getSyncStatus, setCloudAdapter, SYNC_TABLES } from '../js/services/sync.js';
+import { exportBackup, importBackup } from '../js/services/backup.js';
 
 const USER = { id: 'user-1', email: 'pescatore@example.it' };
 const clone = (v) => JSON.parse(JSON.stringify(v));
@@ -232,6 +233,43 @@ describe('due dispositivi', () => {
     use(b);
     await syncNow();
     assert.equal(listGear().length, 0, 'la lapide arriva anche sull\'altro dispositivo');
+  });
+
+  test('una vecchia copia non riporta in vita ciò che è stato cancellato su un altro dispositivo', async () => {
+    const a = device();
+    const b = device();
+    const c = device();
+    use(a);
+    const g = saveGear(rod({ name: 'Venduta' }));
+    const oldBackup = exportBackup();
+    await syncNow();
+
+    use(b);
+    await syncNow();
+    at('2026-11-19T11:00:00.000Z');
+    deleteGear(g.client_id);
+    await syncNow();
+    assert.ok(cloud.row('gear_items', g.client_id).deleted_at);
+
+    // Un terzo dispositivo, che quella canna non l'ha mai vista, riceve solo la lapide
+    use(c);
+    at('2026-11-19T11:05:00.000Z');
+    const events = [];
+    const off = bus.on('data:changed', (p) => events.push(p));
+    await syncNow();
+    off();
+    assert.equal(listGear().length, 0);
+    assert.ok(!events.some((p) => p?.kind === 'gear'), 'una lapide per un record mai visto non annuncia cambiamenti');
+
+    // Poi ci unisce la copia fatta prima della cancellazione
+    at('2026-11-19T11:10:00.000Z');
+    importBackup(oldBackup, { mode: 'merge' });
+    assert.equal(listGear().length, 0, 'la lapide è più recente della copia');
+    const res = await syncNow();
+    assert.equal(res.ok, true);
+    assert.equal(listGear().length, 0);
+    assert.equal(getQueue().length, 0);
+    assert.ok(cloud.row('gear_items', g.client_id).deleted_at, 'il cloud resta com\'era');
   });
 
   test('cancellazioni sull\'altro dispositivo svuotano il locale', async () => {

@@ -81,12 +81,17 @@ function storage() {
 
 const keyFor = (spotId) => `${CACHE.prefix}${spotId}`;
 
-function readCache(spotId) {
+const sameCoord = (a, b) => Number.isFinite(a) && Number.isFinite(b) && Math.abs(a - b) < 1e-5;
+
+function readCache(spot) {
   const ls = storage();
   if (!ls) return null;
   try {
-    const entry = JSON.parse(ls.getItem(keyFor(spotId)) || 'null');
+    const entry = JSON.parse(ls.getItem(keyFor(spot.id)) || 'null');
     if (!entry || !Number.isFinite(Date.parse(entry.fetchedAt))) return null;
+    // La copia vale solo per il punto per cui è stata scaricata: uno spot spostato sulla mappa
+    // tiene lo stesso id, ma il mare di prima non è più il suo
+    if (!sameCoord(entry.lat, spot.lat) || !sameCoord(entry.lng, spot.lng)) return null;
     const weather = isBlock(entry.weather) ? entry.weather : null;
     const marine = isBlock(entry.marine) ? entry.marine : null;
     return weather || marine ? { fetchedAt: entry.fetchedAt, weather, marine } : null;
@@ -120,11 +125,11 @@ function trimCache(ls, keepKey, max) {
   while (others.length > max - 1) ls.removeItem(others.shift().k);
 }
 
-function writeCache(spotId, entry) {
+function writeCache(spot, entry) {
   const ls = storage();
   if (!ls) return;
-  const key = keyFor(spotId);
-  const raw = JSON.stringify(entry);
+  const key = keyFor(spot.id);
+  const raw = JSON.stringify({ ...entry, lat: spot.lat, lng: spot.lng });
   try {
     ls.setItem(key, raw);
     trimCache(ls, key, CACHE.maxSpots);
@@ -167,13 +172,16 @@ function describeErrors(wErr, mErr) {
 
 /** Decide cosa restituire per uno spot dati i blocchi scaricati (o null) e la copia salvata. */
 function resolve(spot, now, weather, marine, wErr, mErr) {
-  const cached = readCache(spot.id);
+  const cached = readCache(spot);
   const error = describeErrors(weather ? null : wErr, marine ? null : mErr);
   if (weather || marine) {
     const entry = { fetchedAt: new Date(now).toISOString(), weather, marine };
-    // Un risultato parziale non sostituisce una copia completa ancora utilizzabile
-    const keepOld = !isComplete(entry) && isComplete(cached) && ageOf(cached, now) < CACHE.usableMs;
-    if (!keepOld) writeCache(spot.id, entry);
+    // Un risultato parziale non sostituisce una copia completa ancora utilizzabile: si resta su
+    // quella, dichiarata come non aggiornata, invece di far sparire mare e punteggio
+    if (!isComplete(entry) && isComplete(cached) && ageOf(cached, now) < CACHE.usableMs) {
+      return fromEntry(cached, spot, now, 'stale', error);
+    }
+    writeCache(spot, entry);
     return fromEntry(entry, spot, now, 'network', error);
   }
   if (cached) return fromEntry(cached, spot, now, 'stale', error);
@@ -189,7 +197,7 @@ function resolve(spot, now, weather, marine, wErr, mErr) {
  * @returns {Promise<{ forecast: object|null, meta: object }>}
  */
 export async function loadForecast(spot, { force = false, now = Date.now() } = {}) {
-  const cached = readCache(spot.id);
+  const cached = readCache(spot);
   if (!force && cached && isFresh(cached, now)) return fromEntry(cached, spot, now, 'cache', null);
   const [w, m] = await Promise.allSettled([fetchJson(weatherUrl(spot)), fetchJson(marineUrl(spot))]);
   const weather = w.status === 'fulfilled' && isBlock(w.value) ? w.value : null;
@@ -206,7 +214,7 @@ export async function loadForecasts(spots, { now = Date.now() } = {}) {
   const out = new Map();
   const toFetch = [];
   for (const s of list) {
-    const cached = readCache(s.id);
+    const cached = readCache(s);
     if (cached && isFresh(cached, now)) out.set(s.id, fromEntry(cached, s, now, 'cache', null));
     else toFetch.push(s);
   }

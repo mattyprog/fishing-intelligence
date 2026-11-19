@@ -214,6 +214,7 @@ function mergeRemote(kind, remote, { full, meta }) {
   let queue = getQueue();
   const seen = new Set();
   let applied = 0;
+  let tombstones = 0;
 
   for (const raw of remote) {
     const id = raw?.client_id;
@@ -229,10 +230,12 @@ function mergeRemote(kind, remote, { full, meta }) {
     seen.add(id);
     const cur = byId.get(id);
     if (!cur) {
-      // lapide di un record mai visto qui: non serve conservarla
-      if (rec.deleted_at) continue;
       byId.set(id, rec);
-      applied++;
+      // Anche la lapide di un record mai visto qui si conserva: se più tardi si unisce una vecchia
+      // copia che lo contiene ancora, senza lapide tornerebbe in vita solo su questo dispositivo
+      // (il cloud rifiuta la versione vecchia). Non cambia nulla di visibile, quindi non si annuncia.
+      if (rec.deleted_at) tombstones++;
+      else applied++;
       continue;
     }
     if (cur.is_demo) continue;
@@ -256,7 +259,7 @@ function mergeRemote(kind, remote, { full, meta }) {
   }
 
   const changes = { queue, syncMeta: meta };
-  if (applied) changes[kind] = [...byId.values()];
+  if (applied || tombstones) changes[kind] = [...byId.values()];
   commitChanges(changes, { kind: applied ? kind : null, source: 'sync' });
   return applied;
 }

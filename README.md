@@ -12,8 +12,9 @@ Versione 2.0.0.
   i sette giorni seguenti, il grafico ora per ora (punteggio, onda, vento, marea), le condizioni
   del momento, il confronto tra gli spot e un piano di pesca con piombo, terminale, esche e
   distanza di lancio.
-- **Sicurezza prima del punteggio**: con onda da 2.1 m, vento da 42 km/h, raffiche da 55 km/h o
-  temporale la giornata è "pericolo", qualunque sia il resto.
+- **Sicurezza prima del punteggio**: le ore con onda da 2.1 m, vento da 42 km/h, raffiche da
+  55 km/h o temporale non entrano mai nella finestra consigliata. Se non restano tre ore sicure
+  di fila la giornata è "pericolo", qualunque sia il resto.
 - **Attrezzatura**: canne ed esche, con il calcolo del piombo che ogni canna può lanciare e dello
   shock leader che serve.
 - **Diario**: le catture con posizione, mappa e il mare di quel momento; col tempo dice dove,

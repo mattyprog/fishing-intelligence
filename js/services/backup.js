@@ -21,7 +21,8 @@ import {
   getPrefs,
   commitChanges,
   isPredefinedSpotId,
-  nowIso
+  nowIso,
+  DEFAULT_PREFS
 } from './storage.js';
 
 export const MAX_BACKUP_BYTES = 2 * 1024 * 1024;
@@ -219,12 +220,14 @@ export function importBackup(obj, { mode = 'merge' } = {}) {
   }
   changes.queue = queue;
 
-  if (mode === 'replace' && prep.data.prefs) {
-    const prefs = { ...prep.data.prefs, onboarded: getPrefs().onboarded };
-    const spotExists = isPredefinedSpotId(prefs.spotId) || changes.spots.some((s) => s.client_id === prefs.spotId && !s.deleted_at);
-    if (!spotExists) prefs.spotId = getPrefs().spotId;
-    changes.prefs = prefs;
-  }
+  // Lo spot scelto deve esistere anche dopo l'importazione: sostituendo (o unendo una copia che
+  // contiene cancellazioni) quello attuale può essere sparito
+  const spotExists = (id) => isPredefinedSpotId(id) || changes.spots.some((s) => s.client_id === id && !s.deleted_at);
+  const current = getPrefs();
+  let prefs = mode === 'replace' && prep.data.prefs ? { ...prep.data.prefs, onboarded: current.onboarded } : null;
+  if (prefs && !spotExists(prefs.spotId)) prefs.spotId = current.spotId;
+  if (!spotExists((prefs || current).spotId)) prefs = { ...(prefs || current), spotId: DEFAULT_PREFS.spotId };
+  if (prefs) changes.prefs = prefs;
 
   commitChanges(changes, { kind: 'all' });
   return counts;

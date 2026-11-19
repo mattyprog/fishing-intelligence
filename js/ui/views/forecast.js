@@ -95,7 +95,7 @@ function handleAction(ev, el) {
     refreshForecast({ force: true }).then(() => {
       const meta = state.forecastMeta;
       if (meta?.source === 'network') toast('Previsioni aggiornate.', 'success');
-      else if (meta?.source === 'stale') toast('Senza rete: restano le ultime previsioni salvate.', 'info');
+      else if (meta?.source === 'stale') toast(navigator.onLine === false ? 'Senza rete: restano le ultime previsioni salvate.' : 'Aggiornamento non riuscito: restano le ultime previsioni salvate.', 'info');
     });
   } else if (act === 'day') selectDay(Number(el.dataset.day));
   else if (act === 'series') {
@@ -295,7 +295,10 @@ function fetchedLabel(meta) {
 function metaLine(meta, evaluation) {
   const parts = [];
   if (!meta) return '';
-  if (meta.source === 'stale') parts.push(`Senza rete: previsioni di ${fetchedLabel(meta)}.`);
+  if (meta.source === 'stale') {
+    const offline = typeof navigator !== 'undefined' && navigator.onLine === false;
+    parts.push(offline ? `Senza rete: previsioni di ${fetchedLabel(meta)}.` : `Aggiornamento non riuscito: restano le previsioni di ${fetchedLabel(meta)}.`);
+  }
   else parts.push(`Dati Open-Meteo, aggiornati ${fetchedLabel(meta)}.`);
   if (evaluation?.missing?.length) parts.push(`Mancano: ${evaluation.missing.join(', ')}.`);
   parts.push('Il punteggio è una stima.');
@@ -350,10 +353,12 @@ function dayStrip(forecast, dayIndex) {
         const ev = evals[i];
         const key = ev?.verdict?.key || 'nd';
         const score = Number.isFinite(ev?.score) ? ev.score : '--';
-        return html`<button type="button" class="fc-day v-${key}" data-act="day" data-day="${i}" aria-pressed="${i === dayIndex ? 'true' : 'false'}" aria-label="${d.label}: ${ev?.verdict?.label || 'non disponibile'}${Number.isFinite(ev?.score) ? `, ${ev.score}` : ''}">
+        // Finestra buona ma ore pericolose nel resto della giornata: va visto anche da qui
+        const partDanger = ev?.safety?.level === 'danger' && key !== 'pericolo';
+        return html`<button type="button" class="fc-day v-${key}" data-act="day" data-day="${i}" aria-pressed="${i === dayIndex ? 'true' : 'false'}" aria-label="${d.label}: ${ev?.verdict?.label || 'non disponibile'}${Number.isFinite(ev?.score) ? `, ${ev.score}` : ''}${partDanger ? ', con ore pericolose' : ''}">
           <span class="fc-day-name">${d.labelShort}</span>
           <span class="fc-day-score num">${score}</span>
-          <span class="dot"></span>
+          <span class="fc-day-marks"><span class="dot"></span>${partDanger ? html`<span class="fc-day-alert">${raw(icon('alert', { size: 12 }))}</span>` : ''}</span>
         </button>`;
       })}
     </div>`.toString();
@@ -467,7 +472,7 @@ function conditionTiles(forecast, day, evaluation, dayIndex) {
 
   const waveValue = Number.isFinite(h.waveM) ? `${fmtNum(h.waveM, 1)} m` : 'n.d.';
   const waveSub = Number.isFinite(h.waveM)
-    ? [Number.isFinite(h.wavePeriodS) ? `${fmtNum(h.wavePeriodS, 0)} s` : null, seaStateLabel(h.waveM), PHASE_LABEL[h.seaPhase] && h.seaPhase !== 'stabile' ? PHASE_LABEL[h.seaPhase] : null]
+    ? [Number.isFinite(h.wavePeriodS) ? `${fmtNum(h.wavePeriodS, 0)} s` : null, seaStateLabel(Math.round(h.waveM * 10) / 10), PHASE_LABEL[h.seaPhase] && h.seaPhase !== 'stabile' ? PHASE_LABEL[h.seaPhase] : null]
         .filter(Boolean)
         .join(' · ')
     : 'dato del mare assente';
@@ -612,9 +617,10 @@ function openTacticsSheet() {
     toast('Servono le previsioni per preparare il piano.', 'info');
     return;
   }
+  const gear = listGear();
   let t;
   try {
-    t = buildTactics({ evaluation, forecast, species: currentSpecies(), spot: currentSpot(), gear: listGear(), baits: listBaits() });
+    t = buildTactics({ evaluation, forecast, species: currentSpecies(), spot: currentSpot(), gear, baits: listBaits() });
   } catch (err) {
     console.error('Piano di pesca non calcolato:', err);
     toast('Non riesco a preparare il piano.', 'error');
@@ -623,7 +629,10 @@ function openTacticsSheet() {
 
   const rodsOk = t.rods?.ok || [];
   const rodsOver = t.rods?.overloaded || [];
-  const hasRods = rodsOk.length + rodsOver.length > 0;
+  const rodsUnder = t.rods?.underloaded || [];
+  const hasRods = rodsOk.length + rodsOver.length + rodsUnder.length > 0;
+  // Canne registrate ma non valutabili: in manutenzione o senza grammi di lancio
+  const ownsRods = gear.some((g) => g.category === 'canna_surf' || g.category === 'canna_fondo');
   const block = (iconName, title, content) => html`<section class="fc-plan-block">
     <h3 class="row">${raw(icon(iconName, { size: 18 }))}<span>${title}</span></h3>
     ${content}
@@ -642,8 +651,12 @@ function openTacticsSheet() {
               ? html`<div class="row row-wrap">
                   ${rodsOk.map((r) => html`<span class="chip chip-ok">${raw(icon('check', { size: 14 }))}${r.name}</span>`)}
                   ${rodsOver.map((r) => html`<span class="chip chip-warn">${r.name}: troppo leggera</span>`)}
-                </div>`
-              : html`<p class="small muted">Aggiungi le tue canne in Attrezzatura e ti dico quale regge questo piombo.</p>`
+                  ${rodsUnder.map((r) => html`<span class="chip chip-off">${r.name}: troppo potente, si carica poco</span>`)}
+                </div>
+                ${rodsOk.length ? '' : html`<p class="small muted">Nessuna delle tue canne lavora bene con questo piombo più l'esca.</p>`}`
+              : ownsRods
+                ? html`<p class="small muted">Le tue canne sono in manutenzione o senza grammi di lancio: completa i dati in Attrezzatura.</p>`
+                : html`<p class="small muted">Aggiungi le tue canne in Attrezzatura e ti dico quale regge questo piombo.</p>`
           }`
       )}
       ${block('rod', 'Terminale', html`<p class="small">${t.rig}</p>`)}
@@ -724,7 +737,7 @@ async function openCompareSheet() {
             <span class="fc-rank num v-text">${Number.isFinite(ev?.score) ? ev.score : '--'}</span>
             <span class="grow">
               <span class="item-title">${spot.name}</span>
-              <span class="item-sub">${ev?.verdict?.label || 'Previsione non disponibile'}${ev?.bestWindow?.label ? ` · ${ev.bestWindow.label}` : ''}</span>
+              <span class="item-sub">${ev?.verdict?.label || 'Previsione non disponibile'}${ev?.bestWindow?.label ? ` · ${ev.bestWindow.label}` : ''}${ev?.safety?.level === 'danger' && ev?.verdict?.key !== 'pericolo' ? ' · pericolo in altre ore' : ''}</span>
             </span>
             ${spot.id === state.spotId ? raw(icon('check')) : raw(icon('chevron-right', { size: 18 }))}
           </button>`

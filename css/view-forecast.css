@@ -200,6 +200,21 @@
   line-height: 1;
 }
 
+/* Pallino del verdetto e, accanto, il segno di pericolo quando la giornata ha ore pericolose
+   fuori dalla finestra consigliata */
+.fc-day-marks {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  height: 10px;
+}
+
+.fc-day-alert {
+  display: inline-flex;
+  align-items: center;
+  color: var(--v-pericolo);
+}
+
 /* ---------------------------------------------------------------- Grafico orario */
 
 .fc-chart-card {

@@ -146,10 +146,58 @@ test('un risultato parziale non sostituisce una copia completa ancora utilizzabi
   installFetch();
   await loadForecast(SPOT, { now: NOW });
   installFetch({ marine: 'network' });
-  await loadForecast(SPOT, { now: NOW + 40 * MIN });
+  const r = await loadForecast(SPOT, { now: NOW + 40 * MIN });
   const saved = JSON.parse(globalThis.localStorage.getItem(CACHE.prefix + SPOT.id));
   assert.equal(saved.fetchedAt, new Date(NOW).toISOString());
   assert.ok(saved.marine);
+  // e si continua a vedere la copia completa, dichiarata come non aggiornata: il mare non sparisce
+  assert.equal(r.meta.source, 'stale');
+  assert.equal(r.meta.fetchedAt, new Date(NOW).toISOString());
+  assert.equal(r.meta.ageMs, 40 * MIN);
+  assert.deepEqual(r.meta.partial, { weather: false, marine: false });
+  assert.match(r.meta.error, /mare/i);
+  assert.equal(r.forecast.has.marine, true);
+  assert.ok(r.forecast.hours.some((h) => h.waveM !== null));
+
+  // oltre le 24 ore la copia non è più utilizzabile: vale il risultato parziale appena scaricato
+  const late = await loadForecast(SPOT, { now: NOW + 25 * 60 * MIN });
+  assert.equal(late.meta.source, 'network');
+  assert.deepEqual(late.meta.partial, { weather: false, marine: true });
+});
+
+test('uno spot spostato non riusa la copia delle vecchie coordinate', async () => {
+  const mine = { id: 'spot-mio', name: 'Il mio spot', lat: 41.25, lng: 13.6, coast_orientation_deg: 200 };
+  let calls = installFetch();
+  await loadForecast(mine, { now: NOW });
+  assert.equal(calls.length, 2);
+  const saved = JSON.parse(globalThis.localStorage.getItem(CACHE.prefix + mine.id));
+  assert.equal(saved.lat, 41.25);
+  assert.equal(saved.lng, 13.6);
+
+  // stesso punto, entro 30 minuti: copia
+  calls = installFetch();
+  assert.equal((await loadForecast(mine, { now: NOW + 5 * MIN })).meta.source, 'cache');
+  assert.equal(calls.length, 0);
+
+  // spostato di qualche chilometro, stesso id: si riscarica per le nuove coordinate
+  const moved = { ...mine, lat: 41.3, lng: 13.2 };
+  calls = installFetch();
+  const r = await loadForecast(moved, { now: NOW + 6 * MIN });
+  assert.equal(r.meta.source, 'network');
+  assert.equal(calls.length, 2);
+  assert.ok(calls.every((c) => Number(new URL(c.url).searchParams.get('latitude')) === 41.3));
+  assert.equal(r.forecast.lat, 41.3);
+
+  // anche nel confronto tra spot, e senza rete la copia del vecchio punto non si usa
+  calls = installFetch();
+  const again = { ...mine, lat: 41.4, lng: 13.1 };
+  const many = await loadForecasts([again], { now: NOW + 7 * MIN });
+  assert.equal(calls.length, 2);
+  assert.equal(many.get(again.id).meta.source, 'network');
+  installFetch({ weather: 'network', marine: 'network' });
+  const elsewhere = await loadForecast({ ...mine, lat: 40.9, lng: 12.9 }, { now: NOW + 8 * MIN });
+  assert.equal(elsewhere.forecast, null);
+  assert.equal(elsewhere.meta.source, 'none');
 });
 
 test('senza rete: copia salvata come stale, altrimenti nessuna previsione', async () => {

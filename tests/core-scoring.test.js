@@ -209,11 +209,60 @@ test('(o) la finestra migliore non contiene ore pericolose né ore passate', () 
       assert.equal(w.startTime, fc.hours[w.startIndex].time.slice(11, 16));
     }
   }
-  // giornata con un buco sicuro di 2 ore tra ore pericolose: finestra più corta, mai pericolosa
+  // giornata con un varco di 2 ore tra ore pericolose: non è una finestra di pesca
   const gap = syntheticForecast((i) => ({ waveM: i >= 40 && i <= 41 ? 0.6 : 2.4 }));
   const ev = evaluateDay(gap, 1, getSpecies('orata'));
-  assert.deepEqual([ev.bestWindow.startIndex, ev.bestWindow.endIndex], [40, 42]);
+  assert.equal(ev.bestWindow, null);
+  assert.equal(ev.verdict.key, 'pericolo');
+  assert.ok(ev.score <= 15, `punteggio ${ev.score}`);
   assert.equal(ev.safety.level, 'danger');
+});
+
+test('una tregua di un\'ora in una giornata di temporali non diventa una giornata buona', () => {
+  // Temporali ogni tre ore: con le ore adiacenti segnate, resta scoperta un'ora ogni tanto. Mare ideale.
+  const storms = syntheticForecast((i) => ({ weatherCode: i % 4 === 0 ? 95 : 1 }));
+  for (const sp of SPECIES) {
+    const ev = evaluateDay(storms, 1, sp);
+    const safeHours = ev.hourly.filter((h) => h.safety !== 'danger').length;
+    assert.ok(safeHours > 0 && safeHours < ev.hourly.length, 'lo scenario deve avere ore sicure isolate');
+    assert.equal(ev.verdict.key, 'pericolo', sp.id);
+    assert.equal(ev.bestWindow, null, sp.id);
+    assert.ok(ev.score <= 15, `${sp.id} ${ev.score}`);
+  }
+  // Con tre ore di fila senza pericolo la finestra esiste, e l'avviso sulle altre ore resta
+  const morning = syntheticForecast((i) => ({ weatherCode: i >= 36 && i <= 48 ? 95 : 1 }));
+  const ok = evaluateDay(morning, 1, getSpecies('orata'));
+  assert.ok(ok.bestWindow);
+  assert.equal(ok.bestWindow.endIndex - ok.bestWindow.startIndex, 3);
+  assert.notEqual(ok.verdict.key, 'pericolo');
+  assert.equal(ok.safety.level, 'danger');
+});
+
+test('a fine giornata bastano le ore rimaste, se sono tutte sicure', () => {
+  // Sono le 03:10: alla giornata di pesca restano le 03 e le 04
+  const at = (h, over) => {
+    const now = localToEpoch('2026-09-29T00:00', 7200) + h * HOUR + 10 * 60000;
+    return syntheticForecast(over, '2026-09-28T00:00', now);
+  };
+  const calm = evaluateDay(at(3, () => ({})), 0, getSpecies('mormora'));
+  assert.equal(calm.bestWindow.endIndex - calm.bestWindow.startIndex, 2);
+  assert.notEqual(calm.verdict.key, 'pericolo');
+  // Se una delle due è pericolosa non c'è finestra
+  const half = evaluateDay(at(3, (i) => ({ waveM: i === 27 ? 2.4 : 0.5 })), 0, getSpecies('mormora'));
+  assert.equal(half.bestWindow, null);
+  assert.equal(half.verdict.key, 'pericolo');
+});
+
+test('una finestra con mare impegnativo non è mai "ottimo"', () => {
+  assert.equal(verdictFor(75, 'caution').key, 'buono');
+  assert.equal(verdictFor(90, 'caution').key, 'buono');
+  // Sarago a fine novembre con raffiche a 46 km/h tutto il giorno: le sue condizioni, ma con attenzione
+  const fc = syntheticForecast(() => ({ waveM: 1.2, wavePeriodS: 8, windKmh: 18, gustKmh: 46, windDirDeg: 210, seaTempC: 17 }), '2026-11-28T00:00');
+  const ev = evaluateDay(fc, 1, getSpecies('sarago'));
+  assert.ok(ev.bestWindow);
+  assert.ok(ev.score <= 75);
+  assert.notEqual(ev.verdict.key, 'ottimo');
+  assert.equal(ev.safety.level, 'caution');
 });
 
 test('finestra migliore: etichette per oggi e per i giorni dopo', () => {
@@ -288,7 +337,7 @@ test('affidabilità: alta nei primi due giorni, poi media e bassa', () => {
  * Previsione sintetica di 3 giorni (dalle 00:00 di startLocal) con mare e meteo costanti,
  * personalizzabili ora per ora: over(i) restituisce i campi Open-Meteo da cambiare.
  */
-function syntheticForecast(over, startLocal = '2026-09-28T00:00') {
+function syntheticForecast(over, startLocal = '2026-09-28T00:00', now = null) {
   const n = 72;
   const start = localToEpoch(startLocal, 7200);
   const time = Array.from({ length: n }, (_, i) => epochToLocal(start + i * HOUR, 7200));
@@ -314,5 +363,5 @@ function syntheticForecast(over, startLocal = '2026-09-28T00:00') {
     }
   };
   // now: le 05:00 locali del primo giorno, così tutte le ore della giornata sono future
-  return buildForecast({ weather, marine, spot: SPOT, now: start + 5 * HOUR });
+  return buildForecast({ weather, marine, spot: SPOT, now: now ?? start + 5 * HOUR });
 }

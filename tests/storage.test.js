@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 
 import { FakeStorage, installFakeStorage, installBrokenStorage, uninstallStorage } from './helpers/fake-storage.js';
 import { bus } from '../js/state.js';
+import { CACHE } from '../js/config.js';
 import { PREDEFINED_SPOTS } from '../js/core/spots.js';
 import {
   initStorage,
@@ -508,6 +509,48 @@ describe('memoria piena', () => {
     assert.throws(() => saveGear(validRod()), StorageError);
     assert.deepEqual(storage.snapshot(), before);
     assert.equal(listGear().length, 0);
+  });
+
+  test('prima di rinunciare si liberano le previsioni salvate: i dati valgono più della cache', () => {
+    initStorage();
+    // CACHE.prefix e non il testo fisso: se il prefisso cambia in config.js questo test se ne accorge
+    storage.setItem(`${CACHE.prefix}salto-di-fondi`, 'x'.repeat(4000));
+    storage.setItem(`${CACHE.prefix}capratica`, 'y'.repeat(4000));
+    storage.setItem('altra_app', 'resta');
+    storage.quotaBytes = storage.usedBytes() + 200;
+    const saved = saveCatch(validCatch({ notes: 'n'.repeat(900) }));
+    assert.equal(listCatches().length, 1);
+    assert.equal(storage.getJson('fi2_catches')[0].client_id, saved.client_id);
+    assert.equal(storage.getItem(`${CACHE.prefix}salto-di-fondi`), null);
+    assert.equal(storage.getItem(`${CACHE.prefix}capratica`), null);
+    assert.equal(storage.getItem('altra_app'), 'resta');
+  });
+
+  test('senza previsioni da liberare la scrittura fallisce una volta sola e non tocca altro', () => {
+    initStorage();
+    storage.setItem('altra_app', 'z'.repeat(2000));
+    storage.quotaBytes = storage.usedBytes() + 200;
+    const before = storage.snapshot();
+    assert.throws(() => saveCatch(validCatch({ notes: 'n'.repeat(900) })), (err) => err instanceof StorageError && err.code === 'quota');
+    assert.deepEqual(storage.snapshot(), before);
+  });
+
+  test('migrazione con la memoria piena per le previsioni della v1: si liberano prima di scrivere', () => {
+    storage.setItem('fi_initialized_v1', 'true');
+    storage.setJson('fi_gear_items_v1', [{ client_id: 'gear-170-ab', category: 'canna_surf', name: 'La mia canna', min_cast_g: 100, max_cast_g: 200, status: 'pronta', updated_at: '2026-10-02T10:00:00.000Z' }]);
+    storage.setJson('fi_catches_v1', []);
+    storage.setJson('fi_baits_inventory_v1', []);
+    storage.setJson('fi_custom_locations_v1', []);
+    storage.setItem('fi_weather_cache_v1_salto-di-fondi', 'w'.repeat(30000));
+    storage.quotaBytes = storage.usedBytes() + 100;
+    const res = initStorage();
+    assert.equal(res.error, undefined);
+    assert.equal(res.migrated, true);
+    assert.equal(listGear().length, 1);
+    assert.equal(storage.getItem('fi_weather_cache_v1_salto-di-fondi'), null);
+    // e dopo si può scrivere
+    saveGear(validRod());
+    assert.equal(listGear().length, 2);
   });
 });
 

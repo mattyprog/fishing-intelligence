@@ -312,3 +312,44 @@ describe('catchesToCsv', () => {
     assert.ok(lines[1].startsWith('2026-11-19;00:30;Spigola;'));
   });
 });
+
+describe('spot scelto dopo un\'importazione', () => {
+  const spot = (extra = {}) => ({ name: 'Foce', lat: 41.22, lng: 13.76, coast_orientation_deg: 210, ...extra });
+
+  test('sostituendo, se lo spot scelto sparisce si torna a quello predefinito', () => {
+    initStorage();
+    const empty = exportBackup(); // copia presa prima di creare lo spot
+    const mine = saveSpot(spot());
+    setPrefs({ spotId: mine.id });
+    importBackup(empty, { mode: 'replace' });
+    assert.ok(!listSpots().some((s) => s.id === mine.id));
+    assert.equal(getPrefs().spotId, 'salto-di-fondi');
+
+    // anche se la copia non ha preferenze
+    const again = saveSpot(spot({ name: 'Altra foce' }));
+    setPrefs({ spotId: again.id });
+    const { prefs, ...noPrefs } = empty;
+    assert.ok(prefs);
+    importBackup(noPrefs, { mode: 'replace' });
+    assert.equal(getPrefs().spotId, 'salto-di-fondi');
+  });
+
+  test('sostituendo, lo spot scelto nella copia vale se esiste', () => {
+    initStorage();
+    const mine = saveSpot(spot());
+    setPrefs({ spotId: mine.id, speciesId: 'spigola' });
+    const backup = exportBackup();
+    setPrefs({ spotId: 'capratica', speciesId: 'orata' });
+    importBackup(backup, { mode: 'replace' });
+    assert.equal(getPrefs().spotId, mine.id);
+    assert.equal(getPrefs().speciesId, 'spigola');
+  });
+
+  test('unendo, le preferenze restano quelle di adesso', () => {
+    initStorage();
+    const backup = exportBackup();
+    setPrefs({ spotId: 'capratica' });
+    importBackup(backup, { mode: 'merge' });
+    assert.equal(getPrefs().spotId, 'capratica');
+  });
+});

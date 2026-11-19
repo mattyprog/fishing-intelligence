@@ -388,8 +388,13 @@ di diverso, e perché. Dove i due testi non coincidono vale questa sezione.
   raffiche oltre il massimo della specie tolgono fino a 0.5.
 - `scoreHour(hour, species, { day, prev, next })`: le ore vicine servono per il temporale
   nell'ora adiacente e per il verso della marea.
-- Finestra migliore: comprende l'ora in corso; se non ci sono 3 ore sicure di fila se ne cercano
-  2 o 1; se tutte le ore sono pericolose `bestWindow` è `null` e il punteggio non supera 15.
+- Finestra migliore: comprende l'ora in corso e chiede tre ore di fila senza pericolo (meno solo
+  se alla giornata ne restano meno). Un varco di una o due ore tra ore pericolose non è una
+  finestra: `bestWindow` è `null`, il verdetto è `pericolo` e il punteggio non supera 15.
+- Una finestra con ore `caution` non va oltre `buono` (`verdictFor(score, 'caution')`): il tetto
+  75 coincide con la soglia di `ottimo`, e un mare impegnativo non si chiama ottimo.
+- Una giornata con una finestra buona può avere ore pericolose altrove: `safety.level` resta
+  `danger` e la vista lo segnala anche nella striscia dei giorni e nel confronto tra spot.
 - Affidabilità: si misura sull'anticipo della finestra (fino a 48 ore alta, fino a 96 media).
   Senza meteo o senza mare è bassa; senza temperatura dell'acqua o marea è al massimo media.
 - Luce: si classifica il centro dell'ora. Stato del mare: scala Douglas.
@@ -402,7 +407,11 @@ di diverso, e perché. Dove i due testi non coincidono vale questa sezione.
   chiama "Stanotte".
 - `Day.clockShift` (vedi §6).
 - `meta.partial.x = true` significa che quel blocco manca. Una risposta parziale non sovrascrive
-  una copia completa più giovane di 24 ore. `loadForecasts` non riscarica gli spot con copia fresca.
+  una copia completa più giovane di 24 ore: si resta su quella, con `source: 'stale'` e l'errore
+  in `meta.error`, invece di far sparire mare e punteggio. `loadForecasts` non riscarica gli spot
+  con copia fresca.
+- La copia salvata porta `lat` e `lng`: vale solo per il punto per cui è stata scaricata. Uno spot
+  spostato sulla mappa tiene lo stesso id ma si riscarica.
 - `legalSizeFor` restituisce `null` anche per le specie note senza taglia; `speciesIdFor(idONome)`
   ricava l'id dal nome (serve alla migrazione dalla v1).
 
@@ -423,15 +432,38 @@ di diverso, e perché. Dove i due testi non coincidono vale questa sezione.
   non diventa la zona dello spot; le previsioni salvate dalla v1 si eliminano; i dati della v1
   restano come copia finché l'utente non sceglie "Cancella tutti i dati", che li elimina.
 - `clearAllData()` conserva `fi2_meta` (altrimenti si rimigrerebbe) e la sessione `fi2_auth`.
+- Memoria piena: prima di rinunciare a una scrittura si eliminano le previsioni salvate
+  (`fi2_fc_*`, si riscaricano) e si riprova una volta.
+- Importazione: se lo spot scelto non esiste più dopo l'importazione si torna a quello predefinito.
+- Sincronizzazione: si conserva anche la lapide di un record mai visto sul dispositivo, altrimenti
+  una vecchia copia unita in seguito lo riporterebbe in vita solo lì.
 
 ### Interfaccia e guscio
 
 - `js/cloud.js` (non previsto dal contratto): collega adattatore, account e stato.
+- `forecast-controller.js`: `handleDataChanged` ascolta `data:changed`. Dopo un ripristino o una
+  sincronizzazione lo spot attivo può essere sparito o essersi spostato: selezione e previsioni
+  si riallineano.
+- `tactics.js`: le canne si giudicano con `evaluateCasting` (piombo più 15 g di innesco), come in
+  Attrezzatura, e si dividono in `ok`, `overloaded`, `underloaded`. Senza finestra il piano guarda
+  il mare da adesso in poi. Le esche dell'utente compaiono solo con il mare per cui le ha indicate.
+- Diario: il mare allegato a una cattura vale per un'ora, un posto e una specie. Se uno dei tre
+  cambia si ricalcola, quando le previsioni dello spot attivo coprono quel momento; altrimenti si
+  toglie. Il punteggio allegato è quello della specie pescata.
 - `dom.js`: `closeAllSheets()`, chiamata a ogni cambio di vista.
 - `state.loading`, `state.installPrompt`.
 - Service worker: elimina anche le cache della v1 (`fishing-intel-*`); non salva risposte opache.
 - Mappe: fusione normale e mezzo pixel di sovrapposizione tra le tessere (vedi `components.css`).
 - `npm test` è `node --test` senza argomento: con `tests/` Node 22 dà errore.
+
+### Revisione indipendente (19 novembre 2026)
+
+Il codice è stato riletto da un altro modello (Gemini 4 Argon) in sola lettura. Dieci difetti
+segnalati, tutti riscontrati nel codice e corretti. Hanno un test tutte le correzioni fuori dalle
+viste; quelle nelle viste sono state provate nel browser. In ordine: verdetto con ore pericolose, copia completa persa su guasto parziale, copia per
+coordinate vecchie, migrazione con memoria piena, canne nel piano di pesca, spot attivo sparito
+dopo un ripristino, lapidi scartate in sincronizzazione, piano con il mare già passato, mare
+allegato a una cattura modificata, testo sul tema automatico.
 
 ### Limiti noti
 

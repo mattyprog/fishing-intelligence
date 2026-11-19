@@ -249,12 +249,15 @@ export function scoreHour(hour, species, { day, prev, next } = {}) {
   return { score, safety: safety.level, safetyReasons: safety.reasons, parts };
 }
 
-/** Verdetto dal punteggio; la sicurezza vince sempre. */
+/**
+ * Verdetto dal punteggio; la sicurezza vince sempre. Con 'caution' (ore impegnative nella
+ * finestra) il verdetto si ferma a "buono": non si chiama ottimo un mare che chiede attenzione.
+ */
 export function verdictFor(score, safetyLevel) {
   let key;
   if (safetyLevel === 'danger') key = 'pericolo';
   else if (!isNum(score)) key = 'nd';
-  else if (score >= 75) key = 'ottimo';
+  else if (score >= 75 && safetyLevel !== 'caution') key = 'ottimo';
   else if (score >= 60) key = 'buono';
   else if (score >= 45) key = 'discreto';
   else key = 'difficile';
@@ -286,12 +289,15 @@ function bestRun(rows, len, ok) {
   return best;
 }
 
+/**
+ * Finestra migliore: tre ore di fila senza pericolo (meno solo se alla giornata ne restano meno).
+ * Un varco di una o due ore tra ore pericolose non è una finestra di pesca: un temporale che
+ * concede un'ora di tregua non rende sicura la spiaggia.
+ */
 function findWindow(eligible) {
   const len = Math.min(3, eligible.length);
-  for (let l = len; l >= 1; l--) {
-    const run = bestRun(eligible, l, (r) => r.safety !== 'danger');
-    if (run) return { run, safe: true };
-  }
+  const run = bestRun(eligible, len, (r) => r.safety !== 'danger');
+  if (run) return { run, safe: true };
   const any = bestRun(eligible, len, () => true);
   return any ? { run: any, safe: false } : null;
 }
@@ -698,10 +704,12 @@ export function evaluateDay(forecast, dayIndex, species) {
 
   let score = null;
   let bestWindow = null;
+  let windowLevel = 'ok';
   if (found) {
     score = Math.round(found.run.mean);
     if (found.safe) {
       const r = found.run.rows;
+      if (r.some((row) => row.safety === 'caution')) windowLevel = 'caution';
       bestWindow = {
         startIndex: r[0].index,
         endIndex: r[r.length - 1].index + 1,
@@ -710,9 +718,13 @@ export function evaluateDay(forecast, dayIndex, species) {
         score,
         label: windowLabel(Number(r[0].hour.time.slice(11, 13)), r.length, isToday)
       };
+    } else if (score !== null) {
+      // Senza una finestra sicura il punteggio non supera il tetto del pericolo, anche se
+      // nella migliore sequenza c'è qualche ora tranquilla
+      score = Math.min(score, SAFETY.dangerCap);
     }
   }
-  const verdict = verdictFor(score, found && !found.safe ? 'danger' : bestWindow ? 'ok' : safety.level === 'danger' ? 'danger' : 'ok');
+  const verdict = verdictFor(score, found && !found.safe ? 'danger' : bestWindow ? windowLevel : safety.level === 'danger' ? 'danger' : 'ok');
   const refRows = found ? found.run.rows : eligible.length ? eligible : rows;
   const st = windowStats(refRows, forecast);
   const factors = buildFactors(refRows, st, species, day);

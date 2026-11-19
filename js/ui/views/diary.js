@@ -17,7 +17,8 @@ import {
   countDemoRecords,
   removeDemoRecords
 } from '../../services/storage.js';
-import { CATCH_SPECIES, legalSizeFor } from '../../core/species.js';
+import { CATCH_SPECIES, legalSizeFor, getSpecies } from '../../core/species.js';
+import { evaluateForecast } from '../../core/scoring.js';
 import { computeCatchStats, computeInsights } from '../../core/stats.js';
 import { windName } from '../../core/format.js';
 import { createMap, requestGps } from '../map.js';
@@ -366,18 +367,27 @@ function openCatchDetail(id) {
 // ---------------------------------------------------------------- Modulo di registrazione
 
 /** Condizioni dell'ora della cattura, prese dalle previsioni dello spot attivo se la coprono. */
-function buildSnapshot(spotId, caughtMs) {
+function buildSnapshot(spotId, caughtMs, speciesId) {
   const fc = state.forecast;
   if (!fc || !spotId || spotId !== state.spotId || !Array.isArray(fc.hours)) return null;
   const index = fc.hours.findIndex((h) => caughtMs >= h.epochMs && caughtMs < h.epochMs + 3600000);
   if (index < 0) return null;
   const h = fc.hours[index];
+  // Il punteggio è quello della specie pescata (se è tra quelle con un profilo), non di quella
+  // che in quel momento è scelta nella vista Oggi
   let score = null;
-  for (const ev of state.evaluations || []) {
-    const hit = (ev.hourly || []).find((x) => x.index === index);
-    if (hit && Number.isFinite(hit.score)) {
-      score = hit.score;
-      break;
+  const profile = getSpecies(speciesId);
+  if (profile) {
+    try {
+      for (const ev of evaluateForecast(fc, profile)) {
+        const hit = (ev.hourly || []).find((x) => x.index === index);
+        if (hit && Number.isFinite(hit.score)) {
+          score = hit.score;
+          break;
+        }
+      }
+    } catch (err) {
+      console.warn('Punteggio della cattura non calcolato:', err);
     }
   }
   const snap = {
@@ -497,7 +507,7 @@ function openCatchForm(existing) {
       <textarea id="catch-notes" name="notes" class="textarea" maxlength="1000" placeholder="Es. long arm da 170 cm, a 90 metri sul secondo banco">${val(existing?.notes)}</textarea>
     </div>
     <label class="check"><input type="checkbox" name="attach" ${existing && !hasSnapshot ? '' : raw('checked')} /><span>${hasSnapshot ? 'Tieni le condizioni del mare già salvate' : 'Allega il mare di quel momento'}</span></label>
-    <p class="help">Onda, vento, pressione e punteggio dell'ora della cattura, se le previsioni dello spot attivo la coprono.</p>
+    <p class="help">${hasSnapshot ? "Se cambi l'ora, il posto o la specie le ricalcolo, quando le previsioni dello spot attivo coprono quel momento; altrimenti le tolgo, perché non varrebbero più." : "Onda, vento, pressione e punteggio dell'ora della cattura, se le previsioni dello spot attivo la coprono."}</p>
     <p class="error-text hidden" data-slot="error" role="alert"></p>`.toString();
 
   const footer = document.createElement('div');
@@ -628,9 +638,26 @@ function openCatchForm(existing) {
     if (!placeName) return showError('Scrivi il nome del posto.');
     if (!Number.isFinite(draft.lat) || !Number.isFinite(draft.lng)) return showError('Indica la posizione con il GPS o sulla mappa.');
 
+    // Il mare allegato vale per un'ora, un posto e una specie: se uno dei tre cambia va rifatto
+    const hourOf = (ms) => Math.floor(ms / 3600000);
+    const momentChanged = Boolean(existing) && (hourOf(Date.parse(existing.caught_at)) !== hourOf(when.getTime()) || (existing.spot_id || null) !== (spot ? spot.id : null));
+    const speciesChanged = Boolean(existing) && (existing.species_id || null) !== v.species_id;
     let snapshot = existing?.weather_snapshot || {};
+    let snapshotDropped = false;
     if (!v.attach) snapshot = {};
-    else if (!hasSnapshot) snapshot = buildSnapshot(spot?.id || null, when.getTime()) || {};
+    else if (!hasSnapshot || momentChanged) {
+      const fresh = buildSnapshot(spot?.id || null, when.getTime(), v.species_id);
+      snapshotDropped = hasSnapshot && !fresh;
+      snapshot = fresh || {};
+    } else if (speciesChanged) {
+      const fresh = buildSnapshot(spot?.id || null, when.getTime(), v.species_id);
+      if (fresh) snapshot = fresh;
+      else {
+        // Stesso mare, ma il punteggio era dell'altra specie
+        const { score, ...rest } = snapshot;
+        snapshot = rest;
+      }
+    }
 
     try {
       saveCatch({
@@ -653,7 +680,8 @@ function openCatchForm(existing) {
       });
       sheet.close();
       const attached = Object.keys(snapshot).length > 0;
-      toast(existing ? 'Cattura aggiornata.' : attached ? 'Cattura registrata, con il mare di quel momento.' : 'Cattura registrata.', 'success');
+      if (existing) toast(snapshotDropped ? 'Cattura aggiornata. Ho tolto il mare allegato: con la nuova ora o il nuovo posto non valeva più.' : 'Cattura aggiornata.', snapshotDropped ? 'info' : 'success');
+      else toast(attached ? 'Cattura registrata, con il mare di quel momento.' : 'Cattura registrata.', 'success');
     } catch (err) {
       showError(err?.message || 'Non sono riuscito a salvare la cattura.');
     }
