@@ -1,0 +1,89 @@
+/* Fishing Intelligence · variabili di design.
+   Tema scuro per la sera e la notte, tema chiaro ad alto contrasto per il sole.
+   Un solo colore d'accento; la gerarchia la fanno superfici e bordi, non ombre o sfumature. */
+
+:root,
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --bg: #0b1220;
+  --surface: #121b2c;
+  --raised: #1a2538;
+  --border: #2a3850;
+  --text: #eef3fa;
+  --muted: #9fb0c6;
+  --accent: #5cc8ff;
+  --on-accent: #0b1220;
+
+  --v-ottimo: #5be49b;
+  --v-buono: #a3e635;
+  --v-discreto: #facc15;
+  --v-difficile: #fb923c;
+  --v-pericolo: #ff6b6b;
+  --v-nd: #6b7a90;
+  --on-v: #0b1220;
+
+  --danger: #ff6b6b;
+  --danger-soft: rgba(255, 107, 107, 0.12);
+  --warn-soft: rgba(250, 204, 21, 0.12);
+  --info-soft: rgba(92, 200, 255, 0.1);
+  --overlay: rgba(4, 8, 16, 0.72);
+  --chart-night: #0b1220;
+  --shadow: none;
+}
+
+:root[data-theme='light'] {
+  color-scheme: light;
+  --bg: #f5f7fa;
+  --surface: #ffffff;
+  --raised: #eaf0f7;
+  --border: #cbd5e1;
+  --text: #0f172a;
+  --muted: #475569;
+  --accent: #0369a1;
+  --on-accent: #ffffff;
+
+  --v-ottimo: #15803d;
+  --v-buono: #4d7c0f;
+  --v-discreto: #a16207;
+  --v-difficile: #c2410c;
+  --v-pericolo: #b91c1c;
+  --v-nd: #64748b;
+  --on-v: #ffffff;
+
+  --danger: #b91c1c;
+  --danger-soft: rgba(185, 28, 28, 0.08);
+  --warn-soft: rgba(161, 98, 7, 0.1);
+  --info-soft: rgba(3, 105, 161, 0.08);
+  --overlay: rgba(15, 23, 42, 0.45);
+  --chart-night: #dde5ef;
+  --shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
+}
+
+:root {
+  --font: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --fs-hero: 4rem;
+  --fs-h1: 1.5rem;
+  --fs-h2: 1.125rem;
+  --fs-body: 1rem;
+  --fs-small: 0.875rem;
+  --fs-label: 0.75rem;
+
+  --r-s: 8px;
+  --r-m: 12px;
+  --r-l: 20px;
+  --r-pill: 999px;
+
+  --s-1: 4px;
+  --s-2: 8px;
+  --s-3: 12px;
+  --s-4: 16px;
+  --s-5: 24px;
+  --s-6: 32px;
+
+  --tap: 44px;
+  --nav-h: 60px;
+  --header-h: 52px;
+  --page-max: 720px;
+  --safe-b: env(safe-area-inset-bottom, 0px);
+  --safe-t: env(safe-area-inset-top, 0px);
+}

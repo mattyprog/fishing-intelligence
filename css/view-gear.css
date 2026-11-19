@@ -1,0 +1,55 @@
+/* Fishing Intelligence · stili della vista Attrezzatura. */
+
+.gear-head {
+  margin: var(--s-5) 0 var(--s-3);
+}
+
+.gear-head .section-title {
+  margin: 0;
+}
+
+.gear-demo {
+  margin-bottom: var(--s-3);
+}
+
+.gear-calc {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+}
+
+.gear-calc .stepper {
+  display: flex;
+  width: 100%;
+}
+
+.gear-calc .stepper output {
+  flex: 1 1 auto;
+}
+
+.gear-result {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  padding: var(--s-3);
+  border-radius: var(--r-s);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--v, var(--border));
+  background: var(--raised);
+}
+
+.gear-chips {
+  margin-top: 6px;
+}
+
+.gear-bait.is-empty .item-title {
+  color: var(--muted);
+}
+
+.gear-bait .stepper button:disabled {
+  opacity: 0.4;
+}
+
+.gear-bait .stepper output {
+  min-width: 36px;
+}

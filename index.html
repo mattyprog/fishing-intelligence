@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="it" data-theme="dark">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://tile.openstreetmap.org https://server.arcgisonline.com https://tiles.openseamap.org; connect-src 'self' https://api.open-meteo.com https://marine-api.open-meteo.com https://nominatim.openstreetmap.org https://*.supabase.co wss://*.supabase.co; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'" />
+  <meta name="referrer" content="strict-origin-when-cross-origin" />
+  <meta name="theme-color" content="#0b1220" />
+  <meta name="color-scheme" content="dark light" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Fishing Intel" />
+  <meta name="description" content="Previsioni di pesca da riva: quando e dove conviene andare, con mare, vento, maree e un punteggio spiegato per ogni specie. Con diario delle catture e attrezzatura." />
+
+  <title>Fishing Intelligence · Previsioni di pesca da riva</title>
+
+  <link rel="manifest" href="./manifest.webmanifest" />
+  <link rel="icon" type="image/svg+xml" href="./assets/icons/icon.svg" />
+  <link rel="apple-touch-icon" href="./assets/icons/icon-192.png" />
+
+  <script src="./js/theme-boot.js"></script>
+
+  <link rel="stylesheet" href="./css/tokens.css" />
+  <link rel="stylesheet" href="./css/base.css" />
+  <link rel="stylesheet" href="./css/components.css" />
+  <link rel="stylesheet" href="./css/view-forecast.css" />
+  <link rel="stylesheet" href="./css/view-gear.css" />
+  <link rel="stylesheet" href="./css/view-diary.css" />
+  <link rel="stylesheet" href="./css/view-settings.css" />
+</head>
+<body>
+  <header class="app-header">
+    <div class="app-header-inner">
+      <div class="brand">
+        <img class="brand-mark" src="./assets/icons/icon.svg" alt="" width="28" height="28" />
+        <span class="brand-name">Fishing Intelligence</span>
+      </div>
+      <div class="header-actions">
+        <span id="net-pill" class="net-pill" role="status">Senza rete</span>
+        <button type="button" id="btn-theme" class="btn-icon" aria-label="Cambia tema"></button>
+      </div>
+    </div>
+  </header>
+
+  <main class="app-main" id="main">
+    <section id="view-forecast" class="view is-active" aria-label="Previsioni di oggi"></section>
+    <section id="view-gear" class="view" aria-label="Attrezzatura"></section>
+    <section id="view-diary" class="view" aria-label="Diario delle catture"></section>
+    <section id="view-settings" class="view" aria-label="Impostazioni"></section>
+  </main>
+
+  <nav class="tabbar" aria-label="Sezioni">
+    <div class="tabbar-inner">
+      <button type="button" class="tab" data-view="forecast" aria-current="page">
+        <span data-icon="radar"></span><span>Oggi</span>
+      </button>
+      <button type="button" class="tab" data-view="gear">
+        <span data-icon="rod"></span><span>Attrezzatura</span>
+      </button>
+      <button type="button" class="tab" data-view="diary">
+        <span data-icon="map-pin"></span><span>Diario</span>
+      </button>
+      <button type="button" class="tab" data-view="settings">
+        <span data-icon="settings"></span><span>Impostazioni</span>
+      </button>
+    </div>
+  </nav>
+
+  <div id="toasts" class="toasts" aria-live="polite"></div>
+  <div id="sheets"></div>
+
+  <noscript>
+    <p style="padding:16px">Per usare Fishing Intelligence serve JavaScript attivo.</p>
+  </noscript>
+
+  <script type="module" src="./js/app.js"></script>
+</body>
+</html>

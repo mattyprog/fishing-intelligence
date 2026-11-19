@@ -1,0 +1,138 @@
+/* Fishing Intelligence · stili della vista Diario. */
+
+.diary-demo {
+  margin-bottom: var(--s-3);
+}
+
+.diary-stats {
+  margin-bottom: var(--s-3);
+}
+
+@media (max-width: 479px) {
+  .diary-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .diary-stats .tile:last-child {
+    grid-column: 1 / -1;
+  }
+}
+
+.diary-tile-text {
+  display: block;
+  font-size: var(--fs-body);
+  line-height: 1.25;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.diary-map-card {
+  padding: 0;
+  overflow: hidden;
+}
+
+.diary-map {
+  height: 38vh;
+  min-height: 220px;
+  max-height: 380px;
+  background: var(--raised);
+}
+
+.diary-map-fallback {
+  padding: var(--s-5) var(--s-4);
+  text-align: center;
+}
+
+.diary-insights {
+  margin-top: var(--s-3);
+}
+
+.diary-insights .list {
+  margin-top: var(--s-3);
+}
+
+.diary-head {
+  margin: var(--s-5) 0 var(--s-3);
+}
+
+.diary-head .section-title {
+  margin: 0;
+}
+
+.diary-filters {
+  margin-bottom: var(--s-3);
+}
+
+.diary-item {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  width: 100%;
+  min-height: 64px;
+  padding: var(--s-3) 0;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  background: none;
+  color: var(--text);
+  text-align: left;
+}
+
+.diary-item:first-child {
+  padding-top: 0;
+}
+
+.diary-item:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+.diary-item .item-title,
+.diary-item .item-sub {
+  display: block;
+}
+
+.diary-item > .icon {
+  color: var(--muted);
+}
+
+.diary-code {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--raised);
+  border: 1px solid var(--border);
+  font-size: var(--fs-small);
+  font-weight: 700;
+}
+
+.diary-chips {
+  margin-top: 6px;
+}
+
+.diary-detail-size {
+  font-size: var(--fs-h1);
+  font-weight: 700;
+  line-height: 1.2;
+  margin-bottom: var(--s-2);
+}
+
+.diary-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-bottom: var(--s-3);
+  border-bottom: 1px solid var(--border);
+  overflow-wrap: anywhere;
+}
+
+.diary-row:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
