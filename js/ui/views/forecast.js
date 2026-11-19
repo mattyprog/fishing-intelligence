@@ -139,6 +139,7 @@ function render() {
   body.innerHTML = html`
     ${raw(verdictCard(forecast, day, evaluation, dayIndex, meta))}
     ${raw(safetyNotice(evaluation))}
+    ${raw(clockShiftNotice(day))}
     ${raw(dayStrip(forecast, dayIndex))}
     <section class="card fc-chart-card">
       <div class="row-between">
@@ -299,6 +300,24 @@ function metaLine(meta, evaluation) {
   if (evaluation?.missing?.length) parts.push(`Mancano: ${evaluation.missing.join(', ')}.`);
   parts.push('Il punteggio è una stima.');
   return parts.join(' ');
+}
+
+/**
+ * Nei giorni a cavallo del cambio dell'ora le previsioni usano l'ora di oggi anche per i giorni
+ * dopo il cambio: gli orari scritti restano un'ora indietro (o avanti) rispetto all'orologio.
+ */
+function clockShiftNotice(day) {
+  const shift = day?.clockShift;
+  if (!shift || !Number.isFinite(shift.hours) || shift.hours === 0) return '';
+  const n = Math.abs(shift.hours);
+  const amount = n === 1 ? "un'ora" : `${n} ore`;
+  const direction = shift.hours > 0 ? 'avanti' : 'indietro';
+  const when = shift.fromTime ? `dalle ${shift.fromTime}` : 'in questa giornata';
+  return html`
+    <div class="notice notice-info fc-safety" role="status">
+      ${raw(icon('clock'))}
+      <p><strong>Cambio dell'ora.</strong> Le previsioni usano ancora l'ora di oggi: ${when} il tuo orologio sarà ${amount} ${direction} rispetto agli orari scritti qui.</p>
+    </div>`.toString();
 }
 
 function safetyNotice(evaluation) {

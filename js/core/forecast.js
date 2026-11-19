@@ -254,8 +254,64 @@ function firstIndexAtOrAfter(hours, epochMs) {
   return i === -1 ? hours.length : i;
 }
 
+/* ----------------------------- Cambio dell'ora ----------------------------- */
+
+const zoneFormatters = new Map();
+
+/** Scarto reale del fuso in quell'istante, in secondi; null se il dispositivo non conosce il fuso. */
+function zoneOffsetSeconds(timeZone, epochMs) {
+  try {
+    let fmt = zoneFormatters.get(timeZone);
+    if (!fmt) {
+      fmt = new Intl.DateTimeFormat('en-US', {
+        timeZone,
+        hourCycle: 'h23',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit'
+      });
+      zoneFormatters.set(timeZone, fmt);
+    }
+    const p = {};
+    for (const part of fmt.formatToParts(new Date(epochMs))) p[part.type] = Number(part.value);
+    const asUtc = Date.UTC(p.year, p.month - 1, p.day, p.hour, p.minute, p.second);
+    return Number.isFinite(asUtc) ? Math.round((asUtc - epochMs) / 1000) : null;
+  } catch (err) {
+    return null;
+  }
+}
+
+/**
+ * Open-Meteo applica a tutta la risposta lo scarto orario valido adesso, anche oltre un cambio
+ * dell'ora (verificato sulla risposta reale a cavallo del 25 ottobre 2026: 24 ore per giorno,
+ * sempre +1). Gli istanti restano giusti, ma dopo il cambio le ore indicate differiscono di
+ * un'ora dall'orologio. Le ore non si riscrivono: si segnala la giornata.
+ * Contano solo le ore non ancora passate.
+ * @returns {{ hours: number, fromTime: string|null }|null} hours: quanto l'orologio sarà avanti (+1)
+ *   o indietro (-1) rispetto alle ore indicate; fromTime: da che ora indicata, null se tutta la giornata
+ */
+function clockShiftFor(dayHours, timeZone, offset, now) {
+  if (!timeZone) return null;
+  const ahead = dayHours.filter((h) => h.epochMs + HOUR_MS > now);
+  if (!ahead.length) return null;
+  const shiftAt = (h) => {
+    const real = zoneOffsetSeconds(timeZone, h.epochMs);
+    return real === null ? null : Math.round((real - offset) / 3600);
+  };
+  // Il cambio avviene al più una volta nella giornata: bastano i due estremi per escluderlo
+  const first = shiftAt(ahead[0]);
+  const last = shiftAt(ahead[ahead.length - 1]);
+  if (first === null || last === null || (first === 0 && last === 0)) return null;
+  if (first !== 0) return { hours: first, fromTime: null };
+  const start = ahead.find((h) => shiftAt(h) !== 0);
+  return { hours: last, fromTime: start ? start.time.slice(11, 16) : null };
+}
+
 function buildDays(hours, tides, ctx) {
-  const { offset, now, lat, lng } = ctx;
+  const { offset, now, lat, lng, timeZone } = ctx;
   if (!hours.length) return [];
   const local = new Date(now + offset * 1000);
   const todayUtc = Date.UTC(local.getUTCFullYear(), local.getUTCMonth(), local.getUTCDate());
@@ -285,6 +341,7 @@ function buildDays(hours, tides, ctx) {
       sun: Object.fromEntries(Object.entries(sun).map(([key, v]) => [key, stamp(v, offset)])),
       moon: { ...moon, rise: stamp(mt.rise, offset), set: stamp(mt.set, offset) },
       tides: tides.filter((t) => t.epochMs >= start && t.epochMs < end),
+      clockShift: clockShiftFor(hours.slice(startIndex, endIndex), timeZone, offset, now),
       summary: summarize(hours.slice(startIndex, endIndex))
     });
   }
@@ -340,11 +397,12 @@ export function buildForecast({ weather, marine, spot, now }) {
   const tides = findTides(hours, offset);
   const gLat = num(marine?.latitude);
   const gLng = num(marine?.longitude);
+  const timeZone = (w || m).block.timezone ?? null;
   return {
     spotId: spot.id ?? null,
     lat: spot.lat,
     lng: spot.lng,
-    timezone: (w || m).block.timezone ?? null,
+    timezone: timeZone,
     utcOffsetSeconds: offset,
     marineGrid: m && gLat !== null && gLng !== null
       ? { lat: gLat, lng: gLng, distanceKm: Math.round(haversineKm(spot.lat, spot.lng, gLat, gLng) * 10) / 10 }
@@ -357,6 +415,6 @@ export function buildForecast({ weather, marine, spot, now }) {
     },
     hours,
     nowIndex,
-    days: buildDays(hours, tides, { offset, now, lat: spot.lat, lng: spot.lng })
+    days: buildDays(hours, tides, { offset, now, lat: spot.lat, lng: spot.lng, timeZone })
   };
 }

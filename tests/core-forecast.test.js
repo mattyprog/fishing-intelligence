@@ -272,3 +272,53 @@ test('riepilogo della giornata', () => {
   assert.equal(dry.waveMaxM, null);
   assert.equal(dry.seaTempC, null);
 });
+
+/* ----------------------------- Cambio dell'ora ----------------------------- */
+
+const flat = { temperature_2m: () => 15, pressure_msl: () => 1015, wind_speed_10m: () => 10, wind_direction_10m: () => 90 };
+
+test('senza cambio dell\'ora nella finestra nessuna giornata è segnalata (risposta reale)', () => {
+  for (const d of build().days) assert.equal(d.clockShift, null, d.label);
+});
+
+test('ora legale in arrivo: dal cambio l\'orologio è un\'ora avanti rispetto alle ore indicate', () => {
+  // Giovedì 25 marzo 2027, 10:00 locali. L'ora legale scatta domenica 28 alle 02:00 (01:00 UTC).
+  // Open-Meteo usa lo scarto di adesso (+1) per tutta la risposta.
+  const weather = block('2027-03-24T00:00', 192, flat, 3600);
+  const fc = buildForecast({ weather, marine: null, spot: SPOT, now: Date.UTC(2027, 2, 25, 9, 0) });
+  const byDate = Object.fromEntries(fc.days.map((d) => [d.date, d.clockShift]));
+  assert.equal(byDate['2027-03-25'], null);
+  assert.equal(byDate['2027-03-26'], null);
+  // La giornata di pesca di sabato arriva alle 05:00 di domenica: il cambio cade alle 02:00 indicate
+  assert.deepEqual(byDate['2027-03-27'], { hours: 1, fromTime: '02:00' });
+  assert.deepEqual(byDate['2027-03-28'], { hours: 1, fromTime: null });
+  assert.deepEqual(byDate['2027-03-30'], { hours: 1, fromTime: null });
+  // Gli istanti restano quelli veri: l'ora indicata 06:00 di domenica è le 05:00 UTC
+  const h = fc.hours.find((x) => x.time === '2027-03-28T06:00');
+  assert.equal(h.epochMs, Date.UTC(2027, 2, 28, 5, 0));
+});
+
+test('ritorno all\'ora solare: dal cambio l\'orologio è un\'ora indietro', () => {
+  // Giovedì 22 ottobre 2026, 10:00 locali (+2). L'ora solare torna domenica 25 alle 03:00 (01:00 UTC),
+  // che con lo scarto di adesso Open-Meteo indica come 03:00.
+  const weather = block('2026-10-21T00:00', 192, flat, 7200);
+  const fc = buildForecast({ weather, marine: null, spot: SPOT, now: Date.UTC(2026, 9, 22, 8, 0) });
+  const byDate = Object.fromEntries(fc.days.map((d) => [d.date, d.clockShift]));
+  assert.equal(byDate['2026-10-23'], null);
+  assert.deepEqual(byDate['2026-10-24'], { hours: -1, fromTime: '03:00' });
+  assert.deepEqual(byDate['2026-10-25'], { hours: -1, fromTime: null });
+});
+
+test('cambio dell\'ora: le ore già passate non contano, un fuso ignoto non segnala nulla', () => {
+  // Domenica 28 marzo 2027, 03:30 locali: il cambio è appena avvenuto, lo scarto di adesso è +2.
+  // La giornata in corso (sabato 05:00-05:00) ha ore "sbagliate" solo nel passato.
+  const weather = block('2027-03-27T00:00', 120, flat, 7200);
+  const fc = buildForecast({ weather, marine: null, spot: SPOT, now: Date.UTC(2027, 2, 28, 1, 30) });
+  for (const d of fc.days) assert.equal(d.clockShift, null, d.date);
+
+  const unknown = block('2027-03-24T00:00', 192, flat, 3600);
+  unknown.timezone = 'Fuso/Inesistente';
+  for (const d of buildForecast({ weather: unknown, marine: null, spot: SPOT, now: Date.UTC(2027, 2, 25, 9, 0) }).days) assert.equal(d.clockShift, null);
+  delete unknown.timezone;
+  for (const d of buildForecast({ weather: unknown, marine: null, spot: SPOT, now: Date.UTC(2027, 2, 25, 9, 0) }).days) assert.equal(d.clockShift, null);
+});

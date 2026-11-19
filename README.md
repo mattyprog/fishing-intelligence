@@ -1,90 +1,118 @@
-# 🎣 Fishing Intelligence — PWA Surfcasting & Pesca da Riva
+# Fishing Intelligence
 
-**Fishing Intelligence** è una Progressive Web App (PWA) mobile-first in italiano progettata per la pianificazione tecnica delle sessioni di pesca dalla spiaggia (**surfcasting**, **beach ledgering** e **pesca a fondo**), la gestione dell'**Arsenale** (canne, mulinelli, shock leader, esche) con verifica dinamica del *casting weight*, e il **Diario Georeferenziato delle Catture** su mappa interattiva **Leaflet**.
+Previsioni di pesca da riva: dice se e quando conviene uscire, per la specie che cerchi, sul
+litorale laziale o su qualunque spiaggia aggiungi tu. È una web app in italiano pensata per il
+telefono, che si può installare e che funziona anche con poco segnale.
 
----
+Versione 2.0.0.
 
-## 📁 Struttura del Progetto
+## Cosa fa
 
-```text
-fishing-intelligence/
-├── index.html                  # Shell HTML5 semantica, bottom navigation mobile e modali <dialog> accessibili
-├── manifest.webmanifest        # Web App Manifest valido con icone SVG/PNG e shortcuts PWA
-├── sw.js                       # Service Worker con cache versionata (Network-First + fallback offline)
-├── server.js                   # Server HTTP locale zero-dipendenze (Node.js) su porta 8080
-├── verify.js                   # Suite di verifica automatica (ID DOM, asset PWA, astronomia, scoring)
-├── package.json                # Script npm (start, dev, verify)
-├── .env.example                # Template variabili d'ambiente per Supabase
-├── css/
-│   └── styles.css              # CSS3 responsive mobile-first (Tema Notte/Radar + Tema Sole Alto Contrasto)
-├── js/
-│   ├── config.js               # Configurazione endpoint API e credenziali Supabase (file o UI)
-│   ├── data.js                 # Spot costieri predefiniti (Salto di Fondi, Capratica, Sperlonga, Gaeta, ecc.) e profili specie
-│   ├── astronomy.js            # Calcolo astronomico NOAA (Alba, Tramonto, Crepuscolo) e ciclo lunare sinodico Meeus
-│   ├── weather.js              # Integrazione reale Open-Meteo Weather API + Marine API + OSM Nominatim
-│   ├── scoring.js              # Motore di scoring 0-100 trasparente e spiegabile con penalità di sicurezza marina
-│   ├── storage.js              # Persistenza Offline-First in localStorage + coda di sincronizzazione (fi_sync_queue_v1)
-│   ├── supabase.js             # Client Supabase Auth (email/password) e CRUD PostgreSQL protetto da RLS
-│   ├── map.js                  # Gestore mappa Leaflet multi-layer (OSM, Satellite Esri, Topo, OpenSeaMap) + GPS
-│   └── app.js                  # Controller principale dell'applicazione
-├── assets/
-│   └── icons/
-│       ├── icon.svg            # Icona vettoriale radar/onda
-│       ├── icon-192.png        # Icona PWA 192x192
-│       └── icon-512.png        # Icona PWA 512x512
-└── supabase/
-    └── schema.sql              # Schema SQL PostgreSQL completo con trigger e Row Level Security (RLS)
-```
+- **Oggi**: un punteggio da 0 a 100 per la specie scelta, la finestra migliore della giornata,
+  i sette giorni seguenti, il grafico ora per ora (punteggio, onda, vento, marea), le condizioni
+  del momento, il confronto tra gli spot e un piano di pesca con piombo, terminale, esche e
+  distanza di lancio.
+- **Sicurezza prima del punteggio**: con onda da 2.1 m, vento da 42 km/h, raffiche da 55 km/h o
+  temporale la giornata è "pericolo", qualunque sia il resto.
+- **Attrezzatura**: canne ed esche, con il calcolo del piombo che ogni canna può lanciare e dello
+  shock leader che serve.
+- **Diario**: le catture con posizione, mappa e il mare di quel momento; col tempo dice dove,
+  quando e con che esca prendi di più. Segnala i pesci sotto la taglia minima.
+- **Impostazioni**: tema, copia e ripristino dei dati, esportazione per Excel, regole di pesca,
+  come nasce il punteggio, fonti.
 
----
+I dati restano sul dispositivo. Nessun account è richiesto.
 
-## 🚀 1. Avvio Rapido in Locale
+## Avvio
 
-L'applicazione utilizza ES Modules nativi e non richiede bundle pesanti: funziona immediatamente tramite qualsiasi server HTTP locale (necessario per il caricamento dei moduli ES6 e la registrazione del Service Worker `sw.js`).
+Serve solo Node 20 o successivo. Non ci sono pacchetti da installare.
 
-### Opzione A — Con Node.js (Consigliata, zero pacchetti da installare)
 ```bash
-cd fishing-intelligence
-npm start
-```
-*(In alternativa: `node server.js`)*
-Apri il browser su: **`http://localhost:8080`**
-
-### Opzione B — Con Python 3
-```bash
-cd fishing-intelligence
-python -m http.server 8080
-```
-Apri il browser su: **`http://localhost:8080`**
-
-### Esecuzione dei Test di Integrità
-Per verificare che tutti gli ID HTML, gli asset del Service Worker, i calcoli astronomici e il motore di scoring funzionino senza errori:
-```bash
-npm run verify
+npm start          # http://localhost:8080
+npm test           # test con node --test
+npm run check      # controlli statici: precache, import, icone, versioni
 ```
 
----
+`PORT` e `HOST` cambiano porta e indirizzo del server di sviluppo (`HOST=0.0.0.0` per provarla
+dal telefono sulla stessa rete: l'installazione e il GPS richiedono però HTTPS o `localhost`).
 
-## 🗄️ 2. Configurazione Backend & Database Supabase
+Durante lo sviluppo il service worker risponde dalla copia salvata e aggiorna in background:
+dopo una modifica serve un ricaricamento forzato (Ctrl+Maiusc+R), oppure due ricaricamenti.
 
-L'app funziona **da subito al 100% in Modalità Ospite / Offline** salvando i dati localmente. Per attivare l'autenticazione utente e la sincronizzazione cloud su **Supabase**:
+## Struttura
 
-1. **Crea un progetto gratuito su [Supabase](https://supabase.com/)**.
-2. **Esegui lo schema SQL**:
-   - Nel pannello di controllo Supabase, apri **SQL Editor** → **New Query**.
-   - Copia e incolla l'intero contenuto del file [`supabase/schema.sql`](./supabase/schema.sql) e clicca su **Run**.
-   - Lo script crea le tabelle `profiles`, `custom_locations`, `gear_items`, `baits_inventory` e `catches`, attiva i trigger `updated_at` e abilita la **Row Level Security (RLS)** su tutte le tabelle (`auth.uid() = user_id`).
-3. **Configura `SUPABASE_URL` e `SUPABASE_ANON_KEY`**:
-   - Vai in **Project Settings** → **API** su Supabase e copia **Project URL** e **anon public key**.
-   - **Metodo 1 (Direttamente dall'interfaccia dell'app)**: Clicca sul pulsante **👤 Account** in alto a destra nell'app → apri il menu **⚙️ Configurazione Connessione Supabase (URL & Anon Key)** → incolla URL e Anon Key e clicca su **Salva Credenziali Cloud**.
-   - **Metodo 2 (Da codice)**: Inserisci i valori nelle costanti `DEFAULT_SUPABASE_URL` e `DEFAULT_SUPABASE_ANON_KEY` in [`js/config.js`](./js/config.js).
+```
+index.html              guscio dell'app e Content Security Policy
+css/                    tokens (temi), base, componenti, un foglio per vista
+js/config.js            versione, endpoint, soglie di sicurezza, cloud
+js/core/                logica pura, senza DOM né rete: previsioni, punteggio, tattiche,
+                        lancio, astronomia, specie, statistiche
+js/services/            Open-Meteo con cache a scadenza, ricerca dei luoghi, dati locali,
+                        copia e ripristino, sincronizzazione
+js/ui/                  viste, fogli, grafici, mappa
+sw.js                   service worker (guscio e tessere delle mappe già viste)
+tests/                  test con node:test e risposte reali di Open-Meteo come riferimento
+vendor/leaflet/         Leaflet 1.9.4 in locale
+supabase/schema.sql     schema per la sincronizzazione facoltativa
+docs/ARCHITETTURA.md    contratti tra i moduli, scelte e limiti noti
+```
 
----
+Niente build e niente dipendenze a runtime: i moduli ES si caricano così come sono.
 
-## 🌐 3. Pubblicazione Online (Deploy Statico PWA)
+## Dati e fonti
 
-Poiché la PWA è interamente client-side con persistenza duale (LocalStorage + Supabase Cloud) e chiamate CORS dirette a Open-Meteo e Supabase, puoi pubblicarla gratuitamente in pochi secondi su qualsiasi hosting HTTPS statico (HTTPS è obbligatorio in produzione per `navigator.geolocation` e `serviceWorker`):
+- Meteo e mare: [Open-Meteo](https://open-meteo.com), licenza CC BY 4.0. Le previsioni si
+  riscaricano dopo 30 minuti; senza rete resta l'ultima copia, e oltre le 24 ore il punteggio
+  non viene più mostrato.
+- Mappe: OpenStreetMap, Esri World Imagery, OpenSeaMap. Ricerca dei luoghi: Nominatim.
+- Sole e luna: calcolati sul dispositivo.
+- Taglie minime e limiti: regolamento (UE) 2019/1241 e DPR 1639/1968, controllati a novembre 2026.
 
-- **Netlify**: Trascina la cartella `fishing-intelligence` su [app.netlify.com/drop](https://app.netlify.com/drop) oppure collega il repository Git (Build command: *vuoto*, Publish directory: `.`).
-- **Vercel**: Esegui `npx vercel` dentro la cartella `fishing-intelligence`.
-- **GitHub Pages / Cloudflare Pages**: Pubblica la root della directory del progetto.
+Un dato che manca si legge "n.d.": l'app non mostra valori di ripiego.
+
+## Aggiornamento dalla versione 1
+
+Chi usava la versione 1 sullo stesso indirizzo ritrova spot, attrezzatura, esche e catture: la
+conversione avviene al primo avvio. Gli esempi che la versione 1 inseriva da sola vengono marcati
+come tali e si tolgono con un tocco da Diario o Impostazioni. La copia originale resta nel
+browser finché non si sceglie "Cancella tutti i dati".
+
+## Sincronizzazione (facoltativa)
+
+Spenta per impostazione predefinita. Per accenderla chi pubblica l'app deve:
+
+1. creare un progetto [Supabase](https://supabase.com) ed eseguire `supabase/schema.sql`
+   nell'editor SQL;
+2. scrivere indirizzo del progetto e chiave pubblica (anon) in `CLOUD` dentro `js/config.js`.
+
+Da quel momento in Impostazioni compare la sezione Account. La chiave anon è pubblica per
+natura: i dati sono protetti dalle regole di accesso per riga definite nello schema.
+
+Questa parte non è mai stata provata contro un progetto Supabase reale: vedi i limiti qui sotto.
+
+## Pubblicazione
+
+È un sito statico: basta servire la cartella su HTTPS (Netlify, Cloudflare Pages, GitHub Pages).
+Non vanno pubblicate `tests/`, `docs/`, `supabase/` e `server.js`, che servono solo allo sviluppo.
+A ogni rilascio la versione va cambiata insieme in `package.json`, `js/config.js` e `sw.js`
+(`npm run check` verifica che coincidano).
+
+## Limiti noti
+
+- **Il punteggio è una stima.** Le preferenze delle specie vengono dall'esperienza dei pescatori
+  del Tirreno, non da misure, e i pesi sono tarature.
+- **Il mare sotto costa è indicativo.** I modelli hanno celle di alcuni chilometri: per ogni spot
+  l'app dice a che distanza si trova il punto del modello. Il livello del mare serve a leggere il
+  giro di marea, non per la navigazione.
+- **Sincronizzazione non collaudata sul campo.** Coda, fusione e cancellazioni sono coperte dai
+  test con un cloud simulato; lo schema è stato eseguito su PostgreSQL locale (PGlite). Accesso,
+  rinnovo della sessione e regole di accesso su Supabase vero non sono stati provati.
+- **Provata nel browser del computer** in formato telefono, non su telefoni veri: installazione,
+  icone e GPS su iOS e Android restano da verificare.
+- **Cambio dell'ora.** Open-Meteo usa l'ora di oggi anche per i giorni dopo il cambio: l'app lo
+  segnala nella giornata interessata, ma non riscrive gli orari.
+- **Non sostituisce i bollettini ufficiali** né le ordinanze della Capitaneria.
+
+## Licenze
+
+Leaflet è distribuito con licenza BSD a due clausole (`vendor/leaflet/LICENSE`).

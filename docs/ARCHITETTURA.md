@@ -239,10 +239,18 @@ Day {
   sun:  { dawn, sunrise, noon, sunset, dusk },     // ciascuno { time: 'HH:MM', epochMs } o null
   moon: { phaseKey, phaseName, illuminationPct, ageDays, rise, set },  // rise/set come sopra
   tides: [{ type: 'high'|'low', time, epochMs, levelM }],
+  clockShift: { hours: +1|-1, fromTime: 'HH:MM'|null } | null,   // cambio dell'ora, vedi sotto
   summary: { waveMinM, waveMaxM, windMaxKmh, gustMaxKmh, airMinC, airMaxC, weatherCode,
              precipMm, seaTempC }
 }
 ```
+
+- **Cambio dell'ora**: Open-Meteo applica a tutta la risposta lo scarto orario valido adesso, anche
+  oltre un cambio dell'ora (verificato sulla risposta reale a cavallo del 25 ottobre 2026: 24 ore
+  per giorno, scarto sempre +1). `epochMs` è quindi esatto per ogni ora, ma dopo il cambio le ore
+  scritte differiscono di un'ora dall'orologio. Le ore non si riscrivono: `clockShift` dice di
+  quanto l'orologio sarà avanti o indietro, e da che ora scritta (`null` = tutta la giornata).
+  Contano solo le ore non ancora passate. La vista lo mostra come avviso.
 
 - **Giornata di pesca**: va dalle 05:00 alle 05:00 del giorno dopo, perché le sessioni notturne
   non si spezzano a mezzanotte. `days[0]` è la giornata che contiene `now` (alle 02:00 di notte è
@@ -357,3 +365,79 @@ fmtNum(n, decimals)             // 'n.d.' se null
 - OpenStreetMap: URL `https://tile.openstreetmap.org/{z}/{x}/{y}.png`, attribuzione visibile,
   niente scaricamento in blocco. Nominatim: massimo 1 richiesta al secondo, niente
   autocompletamento, risultati in cache.
+- Open-Meteo e cambio dell'ora: richiesta reale dal 24 al 26 ottobre 2026 con `timezone=auto`,
+  confrontata con `timeformat=unixtime`. Scarto sempre +1 ora, 24 ore per giorno, passi di 3600 s:
+  lo scarto di adesso vale per tutta la risposta.
+
+## 11. Com'è stato realizzato: scostamenti dal contratto
+
+Le sezioni precedenti sono il contratto scritto prima del codice. Qui c'è quello che il codice fa
+di diverso, e perché. Dove i due testi non coincidono vale questa sezione.
+
+### Punteggio
+
+- La media pesata è moltiplicata per dei limitatori continui sui fattori cardine:
+  `1 − a·(1 − valore)`, con `a` = 0.4 per il mare, 0.5 per stagione e luce, 0.35 per l'acqua
+  (`LIMITERS` in `scoring.js`). Con la sola media l'orata a gennaio prendeva circa 80 e la mormora
+  a mezzogiorno perdeva solo 10 punti. I tetti del contratto restano, ma risalgono gradualmente
+  fino a 100 quando il fattore arriva a 0.6, per non creare gradini.
+- Di conseguenza i `points` dei fattori sono la sola parte lineare e la loro somma può superare il
+  punteggio. La vista "Perché" mostra barre con il valore di ogni fattore, non punti.
+- Fase del mare: il bonus è relativo alla fase migliore della specie.
+- Vento: di traverso toglie 0.15, contrario 0.30, in proporzione al vento fino a 8 km/h. Le
+  raffiche oltre il massimo della specie tolgono fino a 0.5.
+- `scoreHour(hour, species, { day, prev, next })`: le ore vicine servono per il temporale
+  nell'ora adiacente e per il verso della marea.
+- Finestra migliore: comprende l'ora in corso; se non ci sono 3 ore sicure di fila se ne cercano
+  2 o 1; se tutte le ore sono pericolose `bestWindow` è `null` e il punteggio non supera 15.
+- Affidabilità: si misura sull'anticipo della finestra (fino a 48 ore alta, fino a 96 media).
+  Senza meteo o senza mare è bassa; senza temperatura dell'acqua o marea è al massimo media.
+- Luce: si classifica il centro dell'ora. Stato del mare: scala Douglas.
+- Unico parametro di specie cambiato in taratura: `serra.seaPhase`.
+
+### Previsioni e caricamento
+
+- `Day.moon` ha anche `fraction`; sorgere e tramonto si cercano nella giornata di pesca (05-05).
+- Etichette: domani è "Domani" anche in forma breve; prima delle 05:00 la giornata in corso si
+  chiama "Stanotte".
+- `Day.clockShift` (vedi §6).
+- `meta.partial.x = true` significa che quel blocco manca. Una risposta parziale non sovrascrive
+  una copia completa più giovane di 24 ore. `loadForecasts` non riscarica gli spot con copia fresca.
+- `legalSizeFor` restituisce `null` anche per le specie note senza taglia; `speciesIdFor(idONome)`
+  ricava l'id dal nome (serve alla migrazione dalla v1).
+
+### Dati
+
+- `initStorage()` non lancia: restituisce `{ migrated, demoCount, error?, skipped? }`.
+- `storageUsage()` è asincrona.
+- `syncNow()` non fallisce mai: restituisce `{ ok, pulled, pushed, skipped?, error? }` e chi
+  disegna deve guardare `ok`.
+- `setCloudAdapter(adapter, { autoSync, debounceMs })`: con `autoSync` (predefinito) sincronizza
+  subito, dopo ogni modifica, al ritorno della rete e a ogni cambio di account.
+- `data:changed` può avere `source: 'sync'`.
+- Schema: colonna `synced_at` (ora del server, per scaricare solo le novità) e rifiuto lato
+  server di una versione più vecchia di quella salvata.
+- Limiti sulle catture: 200 kg e 500 cm.
+- I record dimostrativi restano tali anche se modificati e non vanno mai sul cloud.
+- Migrazione dalla v1: l'id della specie si ricava dal nome; il segnaposto "Spot Personalizzato"
+  non diventa la zona dello spot; le previsioni salvate dalla v1 si eliminano; i dati della v1
+  restano come copia finché l'utente non sceglie "Cancella tutti i dati", che li elimina.
+- `clearAllData()` conserva `fi2_meta` (altrimenti si rimigrerebbe) e la sessione `fi2_auth`.
+
+### Interfaccia e guscio
+
+- `js/cloud.js` (non previsto dal contratto): collega adattatore, account e stato.
+- `dom.js`: `closeAllSheets()`, chiamata a ogni cambio di vista.
+- `state.loading`, `state.installPrompt`.
+- Service worker: elimina anche le cache della v1 (`fishing-intel-*`); non salva risposte opache.
+- Mappe: fusione normale e mezzo pixel di sovrapposizione tra le tessere (vedi `components.css`).
+- `npm test` è `node --test` senza argomento: con `tests/` Node 22 dà errore.
+
+### Limiti noti
+
+- `supabase.js` non è mai stato provato contro un progetto reale; `schema.sql` solo su PGlite.
+- Un record che il server rifiuta in modo permanente blocca la sincronizzazione della sua tabella.
+- Le lapidi non vengono mai eliminate.
+- Se un altro utente accede sullo stesso dispositivo, i dati locali si uniscono al suo account.
+- Nessuna prova su telefoni veri (installazione, icone maskable, GPS).
+- Le forze dei limitatori e le preferenze delle specie sono tarature, non misure.
