@@ -209,6 +209,9 @@ function rulesDetails() {
   const withoutSize = CATCH_SPECIES.filter((s) => !Number.isFinite(s.minLegalSizeCm) && s.id !== 'altro').map((s) => s.name.toLowerCase());
   const dailyKg = REGULATIONS?.dailyLimitKg ?? 5;
   const hooks = REGULATIONS?.maxHooksPerRod ?? 3;
+  const rods = REGULATIONS?.maxRods ?? 5;
+  const generalCm = REGULATIONS?.generalMinSizeCm ?? 7;
+  const national = withSize.filter((s) => s.sizeRule === 'it').map((s) => s.name.toLowerCase());
   return details(
     'rules',
     'ruler',
@@ -216,9 +219,9 @@ function rulesDetails() {
     html`
       <ul class="settings-bullets small">
         <li>Al massimo ${dailyKg} kg al giorno a persona, oppure un solo pesce più pesante.</li>
-        <li>Ogni canna può avere al massimo ${hooks} ami.</li>
+        <li>Al massimo ${rods} canne a testa, ognuna con non più di ${hooks} ami.</li>
         <li>Serve la comunicazione al ministero: è gratuita, vale un anno e fa da tesserino. <a href="${LINKS.tesserino}" target="_blank" rel="noopener">Si fa sul portale SIAN</a>.</li>
-        <li>L'app europea RecFishing, obbligatoria da maggio 2026, riguarda chi pesca in apnea o dalla barca: da riva non serve. <a href="${LINKS.comunicazionePesca}" target="_blank" rel="noopener">Lo spiega la Guardia Costiera</a>.</li>
+        <li>Da maggio 2026 chi ha più di 16 anni e pesca in apnea o da una barca deve registrarsi anche sull'app RecFishing. La pesca da riva non è tra i casi <a href="${LINKS.comunicazionePesca}" target="_blank" rel="noopener">indicati dalla Guardia Costiera</a>.</li>
         <li>Il pescato non si può vendere.</li>
       </ul>
       <div>
@@ -229,7 +232,8 @@ function rulesDetails() {
             <tbody>${withSize.map((s) => html`<tr><td>${s.name}</td><td>${s.minLegalSizeCm} cm</td></tr>`)}</tbody>
           </table>
         </div>
-        ${withoutSize.length ? html`<p class="small muted settings-gap">Senza taglia minima europea: ${withoutSize.join(', ')}. Rilasciare i piccoli resta una buona abitudine.</p>` : ''}
+        ${national.length ? html`<p class="small muted settings-gap">Taglia fissata dalla regola nazionale: ${national.join(', ')}. Le altre vengono dal regolamento europeo.</p>` : ''}
+        ${withoutSize.length ? html`<p class="small muted settings-gap">Senza una taglia specifica: ${withoutSize.join(', ')}. Vale il minimo generale di ${generalCm} cm; rilasciare i piccoli resta una buona abitudine.</p>` : ''}
       </div>
       <p class="small muted">Riassunto delle regole nazionali ed europee, controllato a novembre 2026 su <a href="${LINKS.taglieMinime}" target="_blank" rel="noopener">regolamento UE 2019/1241</a> e DPR 1639/1968. Ordinanze locali e aree protette possono essere più severe: fanno fede le fonti ufficiali.</p>`
   );

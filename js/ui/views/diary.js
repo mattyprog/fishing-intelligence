@@ -560,7 +560,7 @@ function openCatchForm(existing) {
     const length = numOrNull(v.length_cm);
     legalEl.classList.remove('error-text');
     if (!legal) {
-      legalEl.textContent = 'Basta uno dei due. Per questa specie non c\'è una taglia minima europea.';
+      legalEl.textContent = 'Basta uno dei due. Per questa specie non c\'è una taglia minima specifica.';
       return;
     }
     if (Number.isFinite(length) && length < legal.cm && !v.released) {

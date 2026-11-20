@@ -121,15 +121,22 @@ test('taglie minime e regole con le fonti', () => {
   assert.equal(legalSizeFor('Pagello fragolino').cm, 15);
   assert.equal(legalSizeFor('sarago testa nera').cm, 18);
   assert.equal(legalSizeFor('Triglia').cm, 11);
+  // Il cefalo non è nell'allegato europeo: la sua taglia viene dalla regola nazionale
+  assert.deepEqual(legalSizeFor('cefalo'), { cm: 20, source: 'DPR 1639/1968, art. 87' });
+  assert.equal(legalSizeFor('muggine').cm, 20);
+  assert.deepEqual(CATCH_SPECIES.filter((s) => s.sizeRule === 'it').map((s) => s.id), ['cefalo']);
+  for (const sp of CATCH_SPECIES) assert.equal(sp.sizeRule === null, sp.minLegalSizeCm === null, sp.id);
   assert.equal(legalSizeFor('ombrina'), null);
   assert.equal(legalSizeFor('pesce serra'), null);
   assert.equal(legalSizeFor('pesce sconosciuto'), null);
   assert.equal(legalSizeFor(''), null);
   assert.equal(REGULATIONS.dailyLimitKg, 5);
   assert.equal(REGULATIONS.maxHooksPerRod, 3);
+  assert.equal(REGULATIONS.maxRods, 5);
+  assert.equal(REGULATIONS.generalMinSizeCm, 7);
   assert.equal(REGULATIONS.sources.length, 3);
   for (const s of REGULATIONS.sources) assert.match(s.url, /^https:\/\//);
-  assert.ok(REGULATIONS.sources.some((s) => /1639\/1968/.test(s.label) && /142/.test(s.label) && /138/.test(s.label)));
+  assert.ok(REGULATIONS.sources.some((s) => /1639\/1968/.test(s.label) && ['87', '138', '140', '142'].every((n) => s.label.includes(`art. ${n}`))));
 });
 
 /* --------------------------------- tactics --------------------------------- */

@@ -160,8 +160,13 @@ export const SPECIES = [
 ].map((s) => deepFreeze(s));
 
 const SIZE_SOURCE = 'Reg. (UE) 2019/1241, allegato IX';
+const SIZE_SOURCE_NATIONAL = 'DPR 1639/1968, art. 87';
 
-/** Specie per il diario. Taglie: Reg. (UE) 2019/1241, allegato IX, parte A (Mediterraneo). */
+/**
+ * Specie per il diario. Taglie: Reg. (UE) 2019/1241, allegato IX, parte A (Mediterraneo), versione
+ * consolidata del 1 gennaio 2026. Il quinto valore 'it' segna una taglia che viene dalla regola
+ * nazionale (DPR 1639/1968, art. 87) perché l'allegato europeo non elenca la specie.
+ */
 export const CATCH_SPECIES = [
   ['orata', 'Orata', 'Sparus aurata', 20],
   ['sarago', 'Sarago maggiore', 'Diplodus sargus', 23],
@@ -178,10 +183,17 @@ export const CATCH_SPECIES = [
   ['sogliola', 'Sogliola', 'Solea vulgaris', 20],
   ['leccia-stella', 'Leccia stella', 'Trachinotus ovatus', null],
   ['grongo', 'Grongo', 'Conger conger', null],
-  ['cefalo', 'Cefalo', 'Mugilidae', null],
+  ['cefalo', 'Cefalo', 'Mugilidae', 20, 'it'],
   ['sugarello', 'Sugarello', 'Trachurus spp.', 15],
   ['altro', 'Altra specie', null, null]
-].map(([id, name, scientificName, minLegalSizeCm]) => Object.freeze({ id, name, scientificName, minLegalSizeCm }));
+].map(([id, name, scientificName, minLegalSizeCm, rule]) => Object.freeze({
+  id,
+  name,
+  scientificName,
+  minLegalSizeCm,
+  // 'ue', 'it' oppure null se la specie non ha una taglia specifica
+  sizeRule: minLegalSizeCm === null ? null : rule || 'ue'
+}));
 
 // Nomi comuni alternativi, per riconoscere le catture scritte a mano
 const ALIASES = {
@@ -204,10 +216,13 @@ const ALIASES = {
 export const REGULATIONS = Object.freeze({
   dailyLimitKg: 5,
   maxHooksPerRod: 3,
+  maxRods: 5,
+  // Sotto questa lunghezza un pesce è "allo stadio giovanile" anche se la specie non ha una taglia sua
+  generalMinSizeCm: 7,
   sources: Object.freeze([
     { label: 'Reg. (UE) 2019/1241, allegato IX: taglie minime nel Mediterraneo', url: LINKS.taglieMinime },
     {
-      label: 'DPR 1639/1968, art. 142 (5 kg al giorno salvo pesce singolo più pesante) e art. 138 (canne con non più di tre ami)',
+      label: 'DPR 1639/1968: art. 87 (taglie nazionali e minimo generale di 7 cm), art. 138 (canne con non più di tre ami), art. 140 (non più di cinque canne a testa), art. 142 (5 kg al giorno salvo pesce singolo più pesante)',
       url: 'https://www.normattiva.it/uri-res/N2Ls?urn:nir:presidente.repubblica:decreto:1968-10-02;1639'
     },
     { label: 'Comunicazione annuale e gratuita della pesca sportiva (MASAF, portale SIAN)', url: LINKS.tesserino }
@@ -247,7 +262,7 @@ function findCatchSpecies(idOrName) {
 export function legalSizeFor(idOrName) {
   const sp = findCatchSpecies(idOrName);
   if (!sp || !Number.isFinite(sp.minLegalSizeCm)) return null;
-  return { cm: sp.minLegalSizeCm, source: SIZE_SOURCE };
+  return { cm: sp.minLegalSizeCm, source: sp.sizeRule === 'it' ? SIZE_SOURCE_NATIONAL : SIZE_SOURCE };
 }
 
 /** Id della specie a partire da un id o da un nome ("Sarago Maggiore" → "sarago"); null se non è in elenco. */

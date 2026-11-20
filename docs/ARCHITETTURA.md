@@ -350,13 +350,18 @@ fmtNum(n, decimals)             // 'n.d.' se null
 
 ## 10. Fatti verificati (19 novembre 2026)
 
-- Taglie minime (Reg. UE 2019/1241, allegato IX parte A, Mediterraneo): spigola 25 cm, sarago
-  maggiore 23, sarago pizzuto 18, sarago testa nera (fasciato) 18, sparaglione 12, mormora 20,
-  orata 20, pagello fragolino 15, pagello bastardo 17, pagro 18, triglie 11, sogliola 20,
-  sgombro 18, sugarello 15, nasello 20, cernie 45. Ombrina, pesce serra e leccia stella non hanno
-  una taglia minima nell'allegato.
-- DPR 1639/1968: art. 142, massimo 5 kg al giorno per pescatore, salvo pesce singolo di peso
-  superiore; art. 138, canne con non più di tre ami.
+- Taglie minime (Reg. UE 2019/1241, allegato IX parte A, Mediterraneo; versione consolidata del
+  1 gennaio 2026, riletta su EUR-Lex a novembre 2026): spigola 25 cm, sarago maggiore 23 cm, orata,
+  mormora e sogliola 20 cm, sarago fasciato, sarago pizzuto e pagro 18 cm, pagello fragolino e
+  sugarello 15 cm, sparaglione 12 cm, triglia 11 cm. Ombrina, pesce serra, leccia stella, grongo e
+  cefalo non sono nell'allegato.
+- DPR 1639/1968 (testo vigente su Normattiva): art. 87, taglia nazionale del cefalo 20 cm e minimo
+  generale di 7 cm per le specie non elencate; art. 138, canne con non più di tre ami; art. 140,
+  non più di cinque canne a testa; art. 142, massimo 5 kg al giorno salvo pesce singolo di peso
+  superiore.
+- Comunicazione annuale e gratuita al ministero (vale da tesserino) e ambito dell'app RecFishing
+  (pesca subacquea e da unità da diporto, sopra i 16 anni, da maggio 2026): pagina della Guardia
+  Costiera aggiornata il 19 maggio 2026.
 - Comunicazione MASAF (tesserino) obbligatoria, gratuita, annuale, dal portale SIAN.
 - Open-Meteo: variabili marine `sea_surface_temperature`, `sea_level_height_msl`,
   `ocean_current_velocity`, `wind_wave_height`, `swell_wave_*` disponibili sul Pontino;

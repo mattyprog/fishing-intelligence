@@ -556,7 +556,7 @@ function openSpeciesSheet() {
       <span class="grow">
         <span class="item-title">${sp.name}</span>
         <span class="item-sub">${sp.summary}</span>
-        <span class="item-sub">${Number.isFinite(sp.minLegalSizeCm) ? `Taglia minima ${sp.minLegalSizeCm} cm` : 'Nessuna taglia minima europea'}</span>
+        <span class="item-sub">${Number.isFinite(sp.minLegalSizeCm) ? `Taglia minima ${sp.minLegalSizeCm} cm` : 'Nessuna taglia minima specifica'}</span>
       </span>
       ${sp.id === state.speciesId ? raw(icon('check')) : ''}
     </button>`
