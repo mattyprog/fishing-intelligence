@@ -4,7 +4,8 @@ Previsioni di pesca da riva: dice se e quando conviene uscire, per la specie che
 litorale laziale o su qualunque spiaggia aggiungi tu. È una web app in italiano pensata per il
 telefono, che si può installare e che funziona anche con poco segnale.
 
-Versione 2.0.0.
+Versione 2.0.0. Online su <https://mattyprog.github.io/fishing-intelligence/>: si apre dal
+telefono e dal menu del browser si può aggiungere alla schermata Home.
 
 ## Cosa fa
 
@@ -67,7 +68,8 @@ Niente build e niente dipendenze a runtime: i moduli ES si caricano così come s
   non viene più mostrato.
 - Mappe: OpenStreetMap, Esri World Imagery, OpenSeaMap. Ricerca dei luoghi: Nominatim.
 - Sole e luna: calcolati sul dispositivo.
-- Taglie minime e limiti: regolamento (UE) 2019/1241 e DPR 1639/1968, controllati a novembre 2026.
+- Taglie minime e limiti: regolamento (UE) 2019/1241 (versione consolidata del 1 gennaio 2026) e
+  DPR 1639/1968, riletti sulle fonti ufficiali a novembre 2026.
 
 Un dato che manca si legge "n.d.": l'app non mostra valori di ripiego.
 
@@ -93,10 +95,18 @@ Questa parte non è mai stata provata contro un progetto Supabase reale: vedi i 
 
 ## Pubblicazione
 
-È un sito statico: basta servire la cartella su HTTPS (Netlify, Cloudflare Pages, GitHub Pages).
-Non vanno pubblicate `tests/`, `docs/`, `supabase/` e `server.js`, che servono solo allo sviluppo.
-A ogni rilascio la versione va cambiata insieme in `package.json`, `js/config.js` e `sw.js`
-(`npm run check` verifica che coincidano).
+È un sito statico, pubblicato con GitHub Pages dal ramo `main` di questo repository (cartella
+radice, file `.nojekyll` perché venga servito così com'è). Tutti i percorsi sono relativi, quindi
+funziona sotto un sottopercorso come `/fishing-intelligence/`.
+
+Per pubblicare una modifica basta `git push`: il sito si aggiorna in circa un minuto. Chi ha già
+aperto l'app continua a vedere la copia salvata, che si rinnova in background: i file nuovi
+compaiono agli avvii successivi. Per far comparire subito l'avviso "Aggiorna"
+la versione va cambiata insieme in `package.json`, `js/config.js` e `sw.js` (`npm run check`
+verifica che coincidano).
+
+Con Pages vengono serviti anche `tests/`, `docs/`, `supabase/` e `server.js`: servono solo allo
+sviluppo e non contengono dati né chiavi.
 
 ## Limiti noti
 
